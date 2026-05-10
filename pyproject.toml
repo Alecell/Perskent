@@ -1,0 +1,49 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "perskent"
+version = "0.1.0"
+description = "CLI para gerenciar skills, agents e commands do Claude Code via repositório Git privado."
+readme = { content-type = "text/markdown", text = "perskent — gerenciador de pacotes para Claude Code via Git." }
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+  { name = "alecell", email = "alecell.dev@gmail.com" },
+]
+keywords = ["claude", "claude-code", "skills", "agents", "cli", "package-manager"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Operating System :: MacOS",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development",
+  "Topic :: Utilities",
+]
+dependencies = [
+  "typer>=0.12",
+  "rich>=13.7",
+  "questionary>=2.0",
+  "keyring>=24.0",
+  "platformdirs>=4.0",
+  "tomli-w>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/alecell/perskent"
+
+[project.scripts]
+pskt = "perskent.cli:app"
+perskent = "perskent.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/perskent"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/perskent", "pyproject.toml", ".gitignore"]
