@@ -4,6 +4,7 @@ from __future__ import annotations
 import typer
 
 from perskent import __version__
+from perskent.commands import destroy as destroy_cmd
 from perskent.commands import doctor as doctor_cmd
 from perskent.commands import find as find_cmd
 from perskent.commands import init as init_cmd
@@ -89,3 +90,8 @@ app.command(
     "push",
     help="Publish a locally-edited package (~/.pskt/) to the remote registry: bump + commit + push.",
 )(push_cmd.run)
+
+app.command(
+    "destroy",
+    help="Permanently delete a package from the registry (workspace + remote). Does not affect installed copies.",
+)(destroy_cmd.run)

@@ -50,6 +50,7 @@ pskt install my-skill project     # install in ./.claude/ (this project only)
 | `pskt remove <name> <root\|project>` | Uninstall a package |
 | `pskt update <name>` | Upgrade a package, preserving files marked in `[update].preserve` |
 | `pskt push <name> [-m <msg>]` | Bump + commit + push a locally-edited package |
+| `pskt destroy <name> [-y]` | Permanently delete a package from the registry (workspace + remote). Does not affect installed copies. |
 
 For any command that accepts `<name>`: if packages with the same name exist in multiple kinds, use the qualified name — `agents/my-thing`, `skills/my-thing`, `commands/my-thing`.
 

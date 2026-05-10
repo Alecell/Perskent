@@ -185,6 +185,11 @@ def add(repo: Path, path: str) -> None:
     _run(["add", "--", path], cwd=repo)
 
 
+def rm_recursive(repo: Path, path: str) -> None:
+    """git rm -rf <path>. Removes files from disk and stages the deletion."""
+    _run(["rm", "-rf", "--", path], cwd=repo)
+
+
 def commit(repo: Path, message: str) -> None:
     """git commit -m <message>. Fails clearly if user.name/email is not configured."""
     _run(["commit", "-m", message], cwd=repo)
