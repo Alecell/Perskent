@@ -7,9 +7,12 @@ from perskent import __version__
 from perskent.commands import doctor as doctor_cmd
 from perskent.commands import find as find_cmd
 from perskent.commands import init as init_cmd
+from perskent.commands import install as install_cmd
+from perskent.commands import remove as remove_cmd
 from perskent.commands import search as search_cmd
 from perskent.commands import show as show_cmd
 from perskent.commands import sync as sync_cmd
+from perskent.commands import update as update_cmd
 
 app = typer.Typer(
     name="pskt",
@@ -65,3 +68,18 @@ app.command(
     "search",
     help="Busca pacotes por nome ou descrição.",
 )(search_cmd.run)
+
+app.command(
+    "install",
+    help="Instala um pacote em ~/.claude/ (root) ou ./.claude/ (project).",
+)(install_cmd.run)
+
+app.command(
+    "remove",
+    help="Remove um pacote instalado.",
+)(remove_cmd.run)
+
+app.command(
+    "update",
+    help="Atualiza pacote pra última versão do registry, preservando arquivos marcados em [update].preserve.",
+)(update_cmd.run)
