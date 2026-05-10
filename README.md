@@ -57,7 +57,7 @@ Em qualquer comando que receba `<name>`, se houver pacotes com o mesmo nome em k
 
 ### Registry remoto vs workspace local
 
-- **Registry remoto** — repositório Git privado seu (ex.: `Alecell/claude-code-cloud`) que guarda os pacotes versionados.
+- **Registry remoto** — repositório Git privado seu (ex.: `seu-usuario/meu-registry`) que guarda os pacotes versionados.
 - **Workspace local** — clone do registry em `~/.pskt/`. É aqui que você **edita** os pacotes; `pskt push` sincroniza com o remoto.
 - **Instalação** — cópia de arquivos do workspace local para o `.claude/` consumido pelo Claude Code (não é symlink; o Claude Code lê arquivos físicos).
 
