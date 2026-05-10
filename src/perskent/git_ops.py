@@ -169,3 +169,48 @@ def commits_between(repo: Path, old: str, new: str) -> int:
         return int(result.stdout.strip())
     except ValueError as e:
         raise GitError(f"saída inesperada de rev-list: {result.stdout!r}") from e
+
+
+def status_porcelain(repo: Path, path_filter: str | None = None) -> list[str]:
+    """Retorna linhas do `git status --porcelain` (filtradas a um path se informado)."""
+    args = ["status", "--porcelain"]
+    if path_filter:
+        args.extend(["--", path_filter])
+    result = _run(args, cwd=repo)
+    return [line for line in result.stdout.splitlines() if line.strip()]
+
+
+def add(repo: Path, path: str) -> None:
+    """git add <path>."""
+    _run(["add", "--", path], cwd=repo)
+
+
+def commit(repo: Path, message: str) -> None:
+    """git commit -m <message>. Falha amigável se user.name/email não configurados."""
+    _run(["commit", "-m", message], cwd=repo)
+
+
+def push(repo: Path, url: str, token: str | None = None, *, branch: str = "main") -> None:
+    """git push origin HEAD:<branch>.
+
+    Usa HEAD:<branch> pra ser explícito sobre o destino mesmo em repos
+    recém-clonados sem upstream propriamente configurado.
+    """
+    env, ctx = _build_env(url, token)
+    try:
+        _run(["push", "origin", f"HEAD:{branch}"], cwd=repo, env=env)
+    finally:
+        _cleanup_askpass(ctx)
+
+
+def git_config_value(key: str, repo: Path | None = None) -> str | None:
+    """Lê valor de git config. Retorna None se não definido."""
+    args = ["config", "--get", key]
+    try:
+        result = _run(args, cwd=repo, check=False)
+    except GitError:
+        return None
+    if result.returncode != 0:
+        return None
+    value = result.stdout.strip()
+    return value or None

@@ -8,6 +8,7 @@ from perskent.commands import doctor as doctor_cmd
 from perskent.commands import find as find_cmd
 from perskent.commands import init as init_cmd
 from perskent.commands import install as install_cmd
+from perskent.commands import push as push_cmd
 from perskent.commands import remove as remove_cmd
 from perskent.commands import search as search_cmd
 from perskent.commands import show as show_cmd
@@ -83,3 +84,8 @@ app.command(
     "update",
     help="Atualiza pacote pra última versão do registry, preservando arquivos marcados em [update].preserve.",
 )(update_cmd.run)
+
+app.command(
+    "push",
+    help="Sobe um pacote editado localmente (~/.pskt/) pro registry remoto: bump + commit + push.",
+)(push_cmd.run)
