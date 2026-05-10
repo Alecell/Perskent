@@ -1,14 +1,14 @@
-"""Armazenamento do token de acesso ao registry remoto.
+"""Token storage for the remote registry.
 
-Tenta primeiro o keyring do OS:
-- Linux: Secret Service (GNOME Keyring, KWallet)
-- macOS: Keychain
+Tries the OS keyring first:
+- Linux:   Secret Service (GNOME Keyring, KWallet)
+- macOS:   Keychain
 - Windows: Credential Manager
 
-Se o ambiente não tiver um backend de keyring disponível (comum em WSL2 sem
-gnome-keyring rodando, contêineres, hosts SSH sem D-Bus), faz fallback pra um
-arquivo em ~/.config/pskt/token com permissão 600. Menos seguro que keyring
-nativo, mas funciona em qualquer ambiente — preferível a quebrar o `init`.
+If no keyring backend is available (common on WSL2 without gnome-keyring,
+containers, headless SSH hosts without D-Bus), falls back to a file at
+~/.config/pskt/token with mode 600. Less secure than a native keyring,
+but works in any environment — preferable to breaking `init`.
 """
 from __future__ import annotations
 
@@ -88,9 +88,9 @@ def _file_delete() -> None:
 # --- public API --------------------------------------------------------------
 
 def set_token(token: str) -> str:
-    """Salva o token. Retorna 'keyring' se conseguiu usar o keyring do OS, ou 'file' se caiu no fallback."""
+    """Store the token. Returns 'keyring' if it landed in the OS keyring, or 'file' if it fell back."""
     if _try_keyring_set(token):
-        _file_delete()  # garante que não fica fallback velho
+        _file_delete()  # ensure no stale fallback is left behind
         return "keyring"
     _file_set(token)
     return "file"
@@ -113,7 +113,7 @@ def has_token() -> bool:
 
 
 def storage_method() -> str:
-    """Onde o token está armazenado: 'keyring', 'file', ou 'none'."""
+    """Where the token is stored: 'keyring', 'file', or 'none'."""
     ok, value = _try_keyring_get()
     if ok and value is not None:
         return "keyring"

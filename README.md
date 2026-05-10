@@ -1,26 +1,26 @@
 # perskent
 
-CLI para gerenciar skills, agents e commands do [Claude Code](https://claude.com/claude-code) via um repositório Git privado seu — sem registry central, sem dependência de host de terceiros.
+CLI for managing [Claude Code](https://claude.com/claude-code) skills, agents and commands via your own private Git repository — no central registry, no third-party host.
 
-Você aponta o `pskt` pro seu próprio repo (pode ser privado no GitHub), e a CLI cuida de instalação, atualização, versionamento e publicação dos seus pacotes para o `.claude/` do scope que escolher (global ou por projeto).
+You point `pskt` at your own repo (a private GitHub repo works fine), and the CLI handles installation, updates, versioning, and publishing of your packages to the `.claude/` of the chosen scope (global or per-project).
 
-## Instalação
+## Installation
 
-One-liner (Linux / macOS, requer Python 3.11+):
+One-liner (Linux / macOS, requires Python 3.11+):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Alecell/Perskent/main/install.sh | sh
 ```
 
-O script detecta `python3.11+`, garante `pipx` no sistema, e instala o `perskent` em um ambiente isolado. Comandos `pskt` e `perskent` ficam disponíveis no `PATH`.
+The script detects `python3.11+`, ensures `pipx` is available on your system, and installs `perskent` into an isolated environment. The `pskt` and `perskent` commands become available on your `PATH`.
 
-Alternativa direta via pipx:
+Direct install via pipx:
 
 ```bash
 pipx install git+https://github.com/Alecell/Perskent.git
 ```
 
-Atualizar depois:
+Upgrade later:
 
 ```bash
 pipx upgrade perskent
@@ -29,49 +29,49 @@ pipx upgrade perskent
 ## Quick start
 
 ```bash
-pskt init                         # configura o registry remoto (URL do seu repo + token)
-pskt find remote                  # lista pacotes disponíveis no registry
-pskt install my-agent root        # instala em ~/.claude/ (global)
-pskt install my-skill project     # instala em ./.claude/ (este projeto)
+pskt init                         # configure the remote registry (your repo URL + token)
+pskt find remote                  # list packages available in the registry
+pskt install my-agent root        # install in ~/.claude/ (global)
+pskt install my-skill project     # install in ./.claude/ (this project only)
 ```
 
-## Comandos
+## Commands
 
-| Comando | Descrição |
+| Command | Description |
 |---|---|
-| `pskt init` | Configura URL do registry remoto e clona em `~/.pskt/` |
-| `pskt doctor` | Diagnóstico (Python, git, paths, token, conectividade) |
-| `pskt sync` | `git pull` no workspace local |
-| `pskt find remote` | Lista pacotes disponíveis no registry |
-| `pskt find local` | Lista pacotes instalados (root + project) |
-| `pskt show <name>` | Detalhes de um pacote |
-| `pskt search <termo>` | Busca por nome/descrição |
-| `pskt install <name> [root\|project] [--force]` | Instala um pacote |
-| `pskt remove <name> <root\|project>` | Desinstala um pacote |
-| `pskt update <name>` | Atualiza um pacote preservando arquivos marcados em `[update].preserve` |
-| `pskt push <name> [-m <msg>]` | Faz bump + commit + push de um pacote editado localmente |
+| `pskt init` | Configure remote registry URL and clone it into `~/.pskt/` |
+| `pskt doctor` | Diagnostics (Python, git, paths, token, reachability) |
+| `pskt sync` | `git pull` on the local workspace |
+| `pskt find remote` | List packages available in the registry |
+| `pskt find local` | List installed packages (root + project) |
+| `pskt show <name>` | Show details of a package |
+| `pskt search <term>` | Search by name or description |
+| `pskt install <name> [root\|project] [--force]` | Install a package |
+| `pskt remove <name> <root\|project>` | Uninstall a package |
+| `pskt update <name>` | Upgrade a package, preserving files marked in `[update].preserve` |
+| `pskt push <name> [-m <msg>]` | Bump + commit + push a locally-edited package |
 
-Em qualquer comando que receba `<name>`, se houver pacotes com o mesmo nome em kinds diferentes, use o nome qualificado: `agents/my-thing`, `skills/my-thing`, `commands/my-thing`.
+For any command that accepts `<name>`: if packages with the same name exist in multiple kinds, use the qualified name — `agents/my-thing`, `skills/my-thing`, `commands/my-thing`.
 
-## Conceitos
+## Concepts
 
-### Registry remoto vs workspace local
+### Remote registry vs local workspace
 
-- **Registry remoto** — repositório Git privado seu (ex.: `seu-usuario/meu-registry`) que guarda os pacotes versionados.
-- **Workspace local** — clone do registry em `~/.pskt/`. É aqui que você **edita** os pacotes; `pskt push` sincroniza com o remoto.
-- **Instalação** — cópia de arquivos do workspace local para o `.claude/` consumido pelo Claude Code (não é symlink; o Claude Code lê arquivos físicos).
+- **Remote registry** — your private Git repository (e.g. `your-user/my-registry`) that stores versioned packages.
+- **Local workspace** — clone of the registry at `~/.pskt/`. This is where you **edit** packages; `pskt push` syncs them to the remote.
+- **Installation** — copies files from the local workspace into the `.claude/` consumed by Claude Code (not a symlink; Claude Code reads physical files).
 
 ### Scopes (root vs project)
 
-- **`root`** — instala em `~/.claude/`, disponível em todos os projetos.
-- **`project`** — instala em `./.claude/` (relativo ao diretório atual), apenas neste projeto.
+- **`root`** — installs into `~/.claude/`, available across all projects.
+- **`project`** — installs into `./.claude/` (relative to the current directory), this project only.
 
-`pskt find local` mostra os dois scopes simultaneamente quando você está num projeto.
+`pskt find local` shows both scopes simultaneously when run from inside a project.
 
-### Estrutura do registry
+### Registry layout
 
 ```
-<seu-registry>/
+<your-registry>/
 ├── agents/
 │   └── my-agent/
 │       ├── manifest.toml
@@ -87,7 +87,7 @@ Em qualquer comando que receba `<name>`, se houver pacotes com o mesmo nome em k
         └── commands/my-cmd.md           → .claude/commands/my-cmd.md
 ```
 
-A pasta-mãe (`agents`, `skills`, `commands`) sinaliza o **tipo** do pacote. O conteúdo de cada pacote (exceto `manifest.toml`) é replicado **1:1** dentro do `.claude/` do scope escolhido — sem renomeação, sem convenção de layout imposta. O autor decide a estrutura dentro do pacote.
+The parent folder (`agents`, `skills`, `commands`) signals the package **kind**. Each package's contents (except `manifest.toml`) are mirrored **1:1** into the chosen scope's `.claude/` — no renaming, no imposed layout convention. The author decides the structure inside the package.
 
 ## Manifest
 
@@ -96,43 +96,43 @@ A pasta-mãe (`agents`, `skills`, `commands`) sinaliza o **tipo** do pacote. O c
 name = "my-agent"
 version = "1.0.0"
 description = "..."
-author = "alecell"
+author = "you"
 
-# Opcional. Sem essa seção, default = sobrescreve tudo em update.
+# Optional. Without this section, the default is to overwrite everything on update.
 [update]
 preserve = [
-  "agent-memory/my-agent/MEMORY.md",   # arquivo exato
-  "agent-memory/my-agent/notes/",      # pasta inteira (recursivo, termina em /)
+  "agent-memory/my-agent/MEMORY.md",   # exact file
+  "agent-memory/my-agent/notes/",      # whole folder (recursive, trailing /)
 ]
 ```
 
-### Sobre `[update].preserve`
+### About `[update].preserve`
 
-Em `pskt update`, arquivos cujos paths batem com algum pattern em `preserve` **não são sobrescritos** se já existem no destino. Isso protege dados acumulados pelo user (memória do agent, anotações, etc) entre versões.
+On `pskt update`, files whose paths match a `preserve` pattern are **not overwritten** if they already exist in the destination. This protects user-accumulated data (agent memory, notes, etc.) across versions.
 
-| Situação | Sem `preserve` | Com `preserve` |
+| Scenario | Without `preserve` | With `preserve` |
 |---|---|---|
-| Primeiro install | Cria o arquivo | Cria o arquivo (template inicial) |
-| Update, arquivo existe no destino | Sobrescreve | **Mantém o que está lá** |
-| Update, versão nova adicionou arquivo | Cria | Cria |
-| Update, versão nova removeu arquivo | Remove do destino | **Mantém o que está lá** |
+| First install | File is created | File is created (initial template) |
+| Update, file exists in destination | Overwritten | **Left untouched** |
+| Update, new version added a file | Created | Created |
+| Update, new version removed a file | Removed from destination | **Left untouched** |
 
-## Autenticação
+## Authentication
 
-- **HTTPS**: token (PAT do GitHub) salvo no keyring do OS quando disponível, ou em arquivo `~/.config/pskt/token` com `chmod 600` como fallback (WSL2, headless servers, containers).
-- **SSH**: delegado ao `ssh-agent` / chave SSH do sistema — sem token gerenciado pela CLI.
+- **HTTPS**: token (GitHub PAT) stored in the OS keyring when available, or in `~/.config/pskt/token` with `chmod 600` as a fallback (WSL2, headless servers, containers).
+- **SSH**: delegated to `ssh-agent` / your SSH key — no token managed by the CLI.
 
-A escolha é automática pela forma da URL informada no `pskt init`.
+The choice is automatic based on the URL form provided to `pskt init`.
 
 ## Requirements
 
-- Python 3.11+ no `PATH`
-- `git` instalado
-- Um repositório Git remoto (privado ou público) que você controle, para servir como seu registry
+- Python 3.11+ on `PATH`
+- `git` installed
+- A remote Git repository (private or public) you control, to serve as your registry
 
 ## Releases
 
-Versões publicadas em [GitHub Releases](https://github.com/Alecell/Perskent/releases). Cada release lista as mudanças e o comando de instalação.
+Versions are published as [GitHub Releases](https://github.com/Alecell/Perskent/releases). Each release lists the changes and the install command.
 
 ## License
 

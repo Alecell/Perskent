@@ -1,4 +1,4 @@
-"""pskt find — listar pacotes (subcomandos: remote, local)."""
+"""pskt find — list packages (subcommands: remote, local)."""
 from __future__ import annotations
 
 import typer
@@ -11,36 +11,36 @@ from perskent.paths import claude_project_dir, claude_root_dir, workspace_dir
 
 find_app = typer.Typer(
     name="find",
-    help="Listar pacotes (remote: registry, local: instalados).",
+    help="List packages (remote: registry, local: installed).",
     no_args_is_help=True,
 )
 
 
 @find_app.command(
     "remote",
-    help="Lista pacotes disponíveis no registry remoto (~/.pskt/).",
+    help="List packages available in the remote registry (~/.pskt/).",
 )
 def remote() -> None:
     if not config.exists():
-        ui.die("perskent não inicializado. Rode `pskt init` primeiro.")
+        ui.die("perskent is not initialized. Run `pskt init` first.")
 
     packages = registry_scan.scan(workspace_dir())
     if not packages:
-        ui.warn(f"Registry vazio em {workspace_dir()}.")
+        ui.warn(f"Registry is empty at {workspace_dir()}.")
         ui.info(
-            "Estrutura esperada: ~/.pskt/<agents|skills|commands>/<nome>/manifest.toml"
+            "Expected layout: ~/.pskt/<agents|skills|commands>/<name>/manifest.toml"
         )
         return
 
     table = Table(
-        title=f"Registry ({len(packages)} pacote(s))",
+        title=f"Registry ({len(packages)} package(s))",
         show_header=True,
         header_style="bold",
     )
-    table.add_column("Tipo", no_wrap=True)
-    table.add_column("Nome", no_wrap=True)
-    table.add_column("Versão", no_wrap=True)
-    table.add_column("Descrição", overflow="fold")
+    table.add_column("Kind", no_wrap=True)
+    table.add_column("Name", no_wrap=True)
+    table.add_column("Version", no_wrap=True)
+    table.add_column("Description", overflow="fold")
     for pkg in packages:
         table.add_row(
             pkg.kind,
@@ -53,7 +53,7 @@ def remote() -> None:
 
 @find_app.command(
     "local",
-    help="Lista pacotes instalados em ~/.claude/ (root) e ./.claude/ (project).",
+    help="List packages installed in ~/.claude/ (root) and ./.claude/ (project).",
 )
 def local() -> None:
     root_pkgs = installed_mod.load(installed_mod.ROOT)
@@ -61,20 +61,20 @@ def local() -> None:
 
     total = len(root_pkgs) + len(project_pkgs)
     if total == 0:
-        ui.info("Nenhum pacote instalado.")
-        ui.info("Use `pskt find remote` pra ver o que está disponível.")
+        ui.info("No packages installed.")
+        ui.info("Run `pskt find remote` to see what's available.")
         return
 
     table = Table(
-        title=f"Pacotes instalados ({total})",
+        title=f"Installed packages ({total})",
         show_header=True,
         header_style="bold",
     )
-    table.add_column("Tipo", no_wrap=True)
-    table.add_column("Nome", no_wrap=True)
-    table.add_column("Versão", no_wrap=True)
+    table.add_column("Kind", no_wrap=True)
+    table.add_column("Name", no_wrap=True)
+    table.add_column("Version", no_wrap=True)
     table.add_column("Scope", no_wrap=True)
-    table.add_column("Local", overflow="fold")
+    table.add_column("Path", overflow="fold")
     for pkg in sorted(root_pkgs.values(), key=lambda p: (p.kind, p.name)):
         table.add_row(
             pkg.kind, pkg.name, pkg.version, "[info]root[/info]", str(claude_root_dir())

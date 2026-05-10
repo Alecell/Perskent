@@ -21,24 +21,24 @@ def _dest_root_for(scope: str) -> Path:
 
 
 def _resolve_install_record(name: str):
-    """Retorna (scope, record) do pacote instalado. Erra com mensagem amigável se 0 ou >1."""
+    """Returns (scope, record) of the installed package. Errors clearly on 0 or >1 matches."""
     if "/" in name:
         for scope_candidate in installed_mod.SCOPES:
             state = installed_mod.load(scope_candidate)
             if name in state:
                 return scope_candidate, state[name]
-        ui.die(f"'{name}' não está instalado em nenhum scope.")
+        ui.die(f"'{name}' is not installed in any scope.")
 
     installations = installed_mod.find_by_name(name)
     if not installations:
-        ui.die(f"'{name}' não está instalado em nenhum scope.")
+        ui.die(f"'{name}' is not installed in any scope.")
     if len(installations) > 1:
-        ui.warn(f"'{name}' é ambíguo:")
+        ui.warn(f"'{name}' is ambiguous:")
         for inst in installations:
             ui.console.print(
                 f"  [muted]→[/muted] {inst.qualified_name} ({inst.scope}) v{inst.version}"
             )
-        ui.die("Use o nome qualificado, ex.: `pskt update agents/<nome>`.")
+        ui.die("Use the qualified name, e.g. `pskt update agents/<name>`.")
     inst = installations[0]
     return inst.scope, inst
 
@@ -46,11 +46,11 @@ def _resolve_install_record(name: str):
 def run(
     name: str = typer.Argument(
         ...,
-        help="Nome do pacote (ou <kind>s/<name> pra desambiguar)",
+        help="Package name (or <kind>s/<name> to disambiguate)",
     ),
 ) -> None:
     if not config.exists():
-        ui.die("perskent não inicializado. Rode `pskt init` primeiro.")
+        ui.die("perskent is not initialized. Run `pskt init` first.")
 
     scope, record = _resolve_install_record(name)
     dest_root = _dest_root_for(scope)
@@ -58,22 +58,22 @@ def run(
     matches = registry_scan.find(workspace_dir(), record.qualified_name)
     if not matches:
         ui.die(
-            f"Pacote '{record.qualified_name}' não está mais no registry. "
-            "Rode `pskt sync` pra atualizar, ou `pskt remove` se foi removido."
+            f"Package '{record.qualified_name}' is no longer in the registry. "
+            "Run `pskt sync` to refresh, or `pskt remove` if it was deleted."
         )
     pkg = matches[0]
     new_version = pkg.manifest.version
 
     if new_version == record.version:
         ui.warn(
-            f"'{pkg.qualified_name}' já está em v{new_version} (mesma versão do registry)."
+            f"'{pkg.qualified_name}' is already at v{new_version} (matches registry)."
         )
-        if not ui.ask_confirm("Reinstalar mesmo assim?", default=False):
-            ui.info("Cancelado.")
+        if not ui.ask_confirm("Reinstall anyway?", default=False):
+            ui.info("Cancelled.")
             return
 
     ui.info(
-        f"Atualizando {pkg.qualified_name}: v{record.version} → v{new_version}..."
+        f"Updating {pkg.qualified_name}: v{record.version} → v{new_version}..."
     )
 
     new_files = pkg.files_to_install()
@@ -87,7 +87,7 @@ def run(
     try:
         copied = installer.copy_files(pkg, dest_root, skip=skip_in_copy, overwrite=True)
     except installer.InstallError as e:
-        ui.die(f"Falha durante cópia: {e}")
+        ui.die(f"Copy failed: {e}")
 
     new_paths_set = {str(f) for f in new_files}
     orphans_to_remove: list[str] = []
@@ -121,11 +121,11 @@ def run(
     state[pkg.qualified_name] = new_record
     installed_mod.save(state, scope)
 
-    parts = [f"{len(copied)} sobrescrito(s)"]
+    parts = [f"{len(copied)} overwritten"]
     if skip_in_copy:
-        parts.append(f"{len(skip_in_copy)} preservado(s)")
+        parts.append(f"{len(skip_in_copy)} preserved")
     if orphans_to_remove:
-        parts.append(f"{len(orphans_to_remove)} órfão(s) removido(s)")
+        parts.append(f"{len(orphans_to_remove)} orphan(s) removed")
     if orphans_preserved:
-        parts.append(f"{len(orphans_preserved)} órfão(s) preservado(s)")
-    ui.ok("Atualizado: " + ", ".join(parts) + ".")
+        parts.append(f"{len(orphans_preserved)} orphan(s) preserved")
+    ui.ok("Updated: " + ", ".join(parts) + ".")

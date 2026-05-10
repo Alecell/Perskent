@@ -1,24 +1,24 @@
-"""Registro de pacotes instalados, por scope.
+"""Record of installed packages, per scope.
 
-Persistência em TOML:
+Persisted as TOML:
 - root scope:    ~/.config/pskt/installed.toml
 - project scope: ./.claude/.pskt-installed.toml
 
-Schema (chave do dict é o `qualified_name` do pacote: <kind>s/<name>):
+Schema (the dict key is the package's `qualified_name`: <kind>s/<name>):
 
     [packages."agents/my-agent"]
     name = "my-agent"
     kind = "agent"
     version = "1.0.0"
     installed_at = "2026-05-10T17:30:00Z"
-    source_commit = "abc123"          # opcional
-    installed_paths = [               # paths relativos ao .claude/ do scope
+    source_commit = "abc123"          # optional
+    installed_paths = [               # paths relative to the scope's .claude/
       "agents/my-agent.md",
       "agent-memory/my-agent/context.md",
     ]
 
-A chave qualificada permite ter `agents/foo` e `skills/foo` instalados
-simultaneamente sem colidir.
+The qualified key lets `agents/foo` and `skills/foo` coexist as installed
+packages without colliding.
 """
 from __future__ import annotations
 
@@ -55,12 +55,12 @@ def _registry_path(scope: str, project_root: Path | None = None) -> Path:
         return installed_root_file()
     if scope == PROJECT:
         return installed_project_file(project_root)
-    raise ValueError(f"scope inválido: {scope!r}. Use 'root' ou 'project'.")
+    raise ValueError(f"invalid scope: {scope!r}. Use 'root' or 'project'.")
 
 
 def load(scope: str, project_root: Path | None = None) -> dict[str, InstalledPackage]:
-    """Lê installed.toml do scope. Retorna dict {qualified_name: InstalledPackage}.
-    Se o arquivo não existe, retorna dict vazio."""
+    """Read the scope's installed.toml. Returns {qualified_name: InstalledPackage}.
+    Returns an empty dict if the file does not exist."""
     path = _registry_path(scope, project_root)
     if not path.exists():
         return {}
@@ -105,12 +105,12 @@ def save(packages: dict[str, InstalledPackage], scope: str, project_root: Path |
 
 
 def all_installed(project_root: Path | None = None) -> list[InstalledPackage]:
-    """Lista pacotes instalados em ambos os scopes."""
+    """List packages installed in both scopes."""
     result = list(load(ROOT).values())
     result.extend(load(PROJECT, project_root).values())
     return result
 
 
 def find_by_name(name: str, project_root: Path | None = None) -> list[InstalledPackage]:
-    """Retorna instalações desse nome (pode estar em kinds e/ou scopes diferentes)."""
+    """Return all installations of a name (across kinds and scopes)."""
     return [p for p in all_installed(project_root) if p.name == name]

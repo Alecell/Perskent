@@ -1,12 +1,12 @@
-"""Resolvedor de paths usados pelo CLI.
+"""Path resolver used across the CLI.
 
-Convenções:
-- Config (config.toml, installed.toml do scope root): platformdirs user_config_dir.
-- Workspace (clone do registry remoto): ~/.pskt/ (fixo, conforme decisão do projeto).
-- Instalações consumidas pelo Claude Code:
+Conventions:
+- Config (config.toml, root scope's installed.toml): platformdirs user_config_dir.
+- Workspace (clone of the remote registry): ~/.pskt/ (fixed, per project decision).
+- Installations consumed by Claude Code:
   - root scope:    ~/.claude/
-  - project scope: ./.claude/ (relativo ao cwd, ou a um project_root informado).
-- installed.toml por scope: registra o que cada `pskt install` colocou em disco.
+  - project scope: ./.claude/ (relative to cwd, or to a given project_root).
+- Per-scope installed.toml: records what each `pskt install` placed on disk.
 """
 from __future__ import annotations
 

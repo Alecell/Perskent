@@ -1,4 +1,4 @@
-"""Entry point Typer do CLI `pskt` / `perskent`."""
+"""Typer entry point for the `pskt` / `perskent` CLI."""
 from __future__ import annotations
 
 import typer
@@ -17,7 +17,7 @@ from perskent.commands import update as update_cmd
 
 app = typer.Typer(
     name="pskt",
-    help="Gerenciador de skills, agents e commands do Claude Code via Git privado.",
+    help="Manage Claude Code skills, agents and commands via a private Git registry.",
     no_args_is_help=True,
     context_settings={"help_option_names": ["-h", "--help"]},
 )
@@ -37,55 +37,55 @@ def _main(
         "-V",
         callback=_version_callback,
         is_eager=True,
-        help="Mostra a versão e sai.",
+        help="Show version and exit.",
     ),
 ) -> None:
-    """perskent — gerenciador de pacotes pro Claude Code."""
+    """perskent — package manager for Claude Code."""
 
 
 app.command(
     "init",
-    help="Configura o registry remoto (URL + token) e clona o workspace local em ~/.pskt/.",
+    help="Configure the remote registry (URL + token) and clone the local workspace at ~/.pskt/.",
 )(init_cmd.run)
 
 app.command(
     "doctor",
-    help="Diagnóstico do ambiente: git, paths, token, conectividade do registry.",
+    help="Environment diagnostics: git, paths, token, registry reachability.",
 )(doctor_cmd.run)
 
 app.command(
     "sync",
-    help="Sincroniza ~/.pskt/ com o registry remoto (git pull).",
+    help="Sync ~/.pskt/ with the remote registry (git pull).",
 )(sync_cmd.run)
 
 app.add_typer(find_cmd.find_app)
 
 app.command(
     "show",
-    help="Mostra detalhes de um pacote do registry.",
+    help="Show details of a registry package.",
 )(show_cmd.run)
 
 app.command(
     "search",
-    help="Busca pacotes por nome ou descrição.",
+    help="Search packages by name or description.",
 )(search_cmd.run)
 
 app.command(
     "install",
-    help="Instala um pacote em ~/.claude/ (root) ou ./.claude/ (project).",
+    help="Install a package into ~/.claude/ (root) or ./.claude/ (project).",
 )(install_cmd.run)
 
 app.command(
     "remove",
-    help="Remove um pacote instalado.",
+    help="Remove an installed package.",
 )(remove_cmd.run)
 
 app.command(
     "update",
-    help="Atualiza pacote pra última versão do registry, preservando arquivos marcados em [update].preserve.",
+    help="Upgrade a package to the latest registry version, preserving files marked in [update].preserve.",
 )(update_cmd.run)
 
 app.command(
     "push",
-    help="Sobe um pacote editado localmente (~/.pskt/) pro registry remoto: bump + commit + push.",
+    help="Publish a locally-edited package (~/.pskt/) to the remote registry: bump + commit + push.",
 )(push_cmd.run)

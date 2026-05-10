@@ -1,7 +1,8 @@
-"""UI helpers: console rich + prompts via questionary.
+"""UI helpers: rich console + questionary prompts.
 
-Concentra toda formatação de output e interação. Comandos chamam estes helpers
-em vez de usar print/input direto, pra UX consistente em todo o CLI.
+Centralizes all output formatting and interactive prompts. Commands call
+these helpers instead of using print/input directly, for consistent UX
+across the CLI.
 """
 from __future__ import annotations
 
@@ -47,26 +48,26 @@ def die(msg: str, code: int = 1) -> None:
 def ask_text(prompt: str, default: str | None = None) -> str:
     answer = questionary.text(prompt, default=default or "").ask()
     if answer is None:
-        die("Cancelado.")
+        die("Cancelled.")
     return answer.strip()
 
 
 def ask_password(prompt: str) -> str:
     answer = questionary.password(prompt).ask()
     if answer is None:
-        die("Cancelado.")
+        die("Cancelled.")
     return answer
 
 
 def ask_select(prompt: str, choices: Sequence[str]) -> str:
     answer = questionary.select(prompt, choices=list(choices)).ask()
     if answer is None:
-        die("Cancelado.")
+        die("Cancelled.")
     return answer
 
 
 def ask_confirm(prompt: str, default: bool = False) -> bool:
     answer = questionary.confirm(prompt, default=default).ask()
     if answer is None:
-        die("Cancelado.")
+        die("Cancelled.")
     return answer

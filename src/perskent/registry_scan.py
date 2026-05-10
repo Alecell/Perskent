@@ -1,20 +1,21 @@
-"""Varre o workspace local (~/.pskt/) atrás de pacotes.
+"""Scans the local workspace (~/.pskt/) for packages.
 
-Estrutura esperada do workspace:
+Expected workspace layout:
     ~/.pskt/
     ├── agents/
-    │   └── <pacote>/manifest.toml + estrutura mirror do .claude/
+    │   └── <package>/manifest.toml + mirror structure of .claude/
     ├── skills/
-    │   └── <pacote>/manifest.toml + ...
+    │   └── <package>/manifest.toml + ...
     └── commands/
-        └── <pacote>/manifest.toml + ...
+        └── <package>/manifest.toml + ...
 
-A pasta-mãe (`agents`, `skills`, `commands`) determina o **kind** do pacote.
-Pastas top-level fora desse conjunto e arquivos top-level (README, .gitignore)
-são ignorados — permite que o autor enriqueça o repo com docs sem o CLI tropeçar.
+The parent folder (`agents`, `skills`, `commands`) determines the package
+**kind**. Other top-level folders and top-level files (README, .gitignore)
+are ignored — so the author can enrich the repo with docs without tripping
+up the CLI.
 
-Conteúdo de cada pacote (exceto `manifest.toml`) é instalado por mirror 1:1
-relativo ao `.claude/` do scope escolhido — definido em `installer` na Fase 3.
+Each package's contents (except `manifest.toml`) are installed via a 1:1
+mirror relative to the chosen scope's `.claude/` — implemented in `installer`.
 """
 from __future__ import annotations
 
@@ -24,17 +25,17 @@ from pathlib import Path
 from perskent import manifest as manifest_mod
 from perskent.manifest import Manifest
 
-# Pastas que o Claude Code reconhece em `.claude/` — bate com a estrutura do registry.
+# Folders Claude Code recognizes under `.claude/` — matches the registry layout.
 KIND_FOLDERS: tuple[str, ...] = ("agents", "skills", "commands")
 KIND_SINGULAR: dict[str, str] = {"agents": "agent", "skills": "skill", "commands": "command"}
 
 
 @dataclass
 class Package:
-    """Pacote disponível no registry remoto (clonado em ~/.pskt/)."""
+    """A package available in the remote registry (cloned into ~/.pskt/)."""
 
     manifest: Manifest
-    path: Path  # absoluto, ex.: ~/.pskt/agents/my-agent/
+    path: Path  # absolute, e.g. ~/.pskt/agents/my-agent/
     kind: str   # "agent" | "skill" | "command"
 
     @property
@@ -43,15 +44,15 @@ class Package:
 
     @property
     def qualified_name(self) -> str:
-        """Nome qualificado pelo kind, ex.: 'agents/my-agent'.
-        Usar quando precisar desambiguar entre pacotes de kinds diferentes com mesmo nome."""
+        """Name qualified by kind, e.g. 'agents/my-agent'.
+        Used to disambiguate between packages of different kinds sharing a name."""
         return f"{self.kind}s/{self.name}"
 
     def files_to_install(self) -> list[Path]:
-        """Lista arquivos do pacote (paths relativos a self.path), exceto manifest.toml.
+        """List package files (paths relative to self.path), excluding manifest.toml.
 
-        Esses paths são ao mesmo tempo o destino RELATIVO ao .claude/ — regra de
-        instalação por mirror recursivo definida pelo projeto.
+        These paths are also the install destinations RELATIVE to .claude/ —
+        the recursive-mirror rule defined for the project.
         """
         result: list[Path] = []
         for entry in self.path.rglob("*"):
@@ -61,7 +62,7 @@ class Package:
 
 
 def scan(workspace: Path) -> list[Package]:
-    """Lista pacotes válidos no workspace, ordenados por (kind, name)."""
+    """List valid packages in the workspace, sorted by (kind, name)."""
     if not workspace.exists():
         return []
 
@@ -82,7 +83,7 @@ def scan(workspace: Path) -> list[Package]:
             try:
                 mf = manifest_mod.load(manifest_path)
             except manifest_mod.ManifestError:
-                continue  # manifest quebrado: ignora silenciosamente
+                continue  # broken manifest: silently ignore
             packages.append(Package(manifest=mf, path=entry, kind=kind))
 
     packages.sort(key=lambda p: (p.kind, p.name))
@@ -90,10 +91,11 @@ def scan(workspace: Path) -> list[Package]:
 
 
 def find(workspace: Path, query: str) -> list[Package]:
-    """Busca pacote por `<name>` (sem qualificação) ou `<kind>s/<name>` (qualificado).
+    """Search by `<name>` (unqualified) or `<kind>s/<name>` (qualified).
 
-    Retorna lista — caller decide entre nenhum (0), match único (1), ou ambíguo (2+).
-    Bare name pode retornar múltiplos se o mesmo nome existir em kinds diferentes.
+    Returns a list — caller decides between no match (0), unique (1), or
+    ambiguous (2+). A bare name may return multiple results if the same
+    name exists in different kinds.
     """
     pkgs = scan(workspace)
 

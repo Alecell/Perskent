@@ -22,43 +22,43 @@ def _dest_root_for(scope: str) -> Path:
 def run(
     name: str = typer.Argument(
         ...,
-        help="Nome do pacote (ou <kind>s/<name> pra desambiguar)",
+        help="Package name (or <kind>s/<name> to disambiguate)",
     ),
     scope: str = typer.Argument(
         None,
-        help="root | project (omitir = pergunta interativamente)",
+        help="root | project (omit for an interactive prompt)",
     ),
     force: bool = typer.Option(
         False,
         "--force",
         "-f",
-        help="Sobrescreve arquivos existentes em conflito (atenção: pode apagar trabalho do user)",
+        help="Overwrite conflicting existing files (warning: may erase user work)",
     ),
 ) -> None:
     if not config.exists():
-        ui.die("perskent não inicializado. Rode `pskt init` primeiro.")
+        ui.die("perskent is not initialized. Run `pskt init` first.")
 
     matches = registry_scan.find(workspace_dir(), name)
     if not matches:
         ui.die(
-            f"Pacote '{name}' não existe no registry. "
-            "Rode `pskt find remote` pra listar disponíveis."
+            f"Package '{name}' does not exist in the registry. "
+            "Run `pskt find remote` to list available packages."
         )
     if len(matches) > 1:
-        ui.warn(f"'{name}' é ambíguo:")
+        ui.warn(f"'{name}' is ambiguous:")
         for m in matches:
             ui.console.print(f"  [muted]→[/muted] {m.qualified_name} v{m.manifest.version}")
-        ui.info("Use o nome qualificado, ex.: `pskt install agents/<nome>`.")
+        ui.info("Use the qualified name, e.g. `pskt install agents/<name>`.")
         raise typer.Exit(1)
     pkg = matches[0]
 
     if scope is None:
         scope = ui.ask_select(
-            f"Instalar '{pkg.qualified_name}' onde?",
+            f"Install '{pkg.qualified_name}' where?",
             choices=[installed_mod.ROOT, installed_mod.PROJECT],
         )
     if scope not in installed_mod.SCOPES:
-        ui.die(f"Scope inválido: {scope!r}. Use 'root' ou 'project'.")
+        ui.die(f"Invalid scope: {scope!r}. Use 'root' or 'project'.")
 
     dest_root = _dest_root_for(scope)
 
@@ -66,8 +66,8 @@ def run(
     existing = state.get(pkg.qualified_name)
     if existing is not None and not force:
         ui.die(
-            f"'{pkg.qualified_name}' já está instalado em {scope} (v{existing.version}). "
-            f"Use `pskt update {pkg.qualified_name}` ou `--force` pra reinstalar do zero."
+            f"'{pkg.qualified_name}' is already installed in {scope} (v{existing.version}). "
+            f"Use `pskt update {pkg.qualified_name}` or `--force` to reinstall from scratch."
         )
 
     skip_for_force: set[Path] = set()
@@ -77,20 +77,20 @@ def run(
     conflicts = installer.detect_conflicts(pkg, dest_root, skip=skip_for_force)
     if conflicts and not force:
         ui.error(
-            f"Install abortado: {len(conflicts)} arquivo(s) destino já existem em {dest_root}:"
+            f"Install aborted: {len(conflicts)} destination file(s) already exist at {dest_root}:"
         )
         for c in conflicts:
             ui.console.print(f"  [err]✗[/err] {c.absolute}")
-        ui.info("Use --force pra sobrescrever, ou remova manualmente.")
+        ui.info("Use --force to overwrite, or remove them manually.")
         raise typer.Exit(1)
 
     ui.info(
-        f"Instalando {pkg.qualified_name} v{pkg.manifest.version} em {dest_root}..."
+        f"Installing {pkg.qualified_name} v{pkg.manifest.version} into {dest_root}..."
     )
     try:
         copied = installer.copy_files(pkg, dest_root, overwrite=force)
     except installer.InstallError as e:
-        ui.die(f"Falha durante cópia: {e}")
+        ui.die(f"Copy failed: {e}")
 
     head = git_ops.head_commit(workspace_dir())
     now_iso = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -107,4 +107,4 @@ def run(
     state[pkg.qualified_name] = record
     installed_mod.save(state, scope)
 
-    ui.ok(f"Instalado: {len(copied)} arquivo(s) em {dest_root}.")
+    ui.ok(f"Installed: {len(copied)} file(s) into {dest_root}.")

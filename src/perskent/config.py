@@ -1,6 +1,6 @@
-"""Leitura/escrita do config.toml (URL do registry, método de autenticação).
+"""Read/write of config.toml (registry URL and auth method).
 
-Token NÃO mora aqui — vai pro keyring do OS via `auth.py`.
+The token does NOT live here — it goes to the OS keyring via `auth.py`.
 """
 from __future__ import annotations
 
@@ -29,7 +29,7 @@ class Config:
     def from_dict(cls, data: dict) -> "Config":
         registry = data.get("registry") or {}
         if "url" not in registry:
-            raise ValueError("config.toml inválido: faltando [registry].url")
+            raise ValueError("invalid config.toml: missing [registry].url")
         return cls(
             registry_url=registry["url"],
             auth_method=registry.get("auth_method") or "ssh",

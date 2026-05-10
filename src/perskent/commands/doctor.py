@@ -1,4 +1,4 @@
-"""pskt doctor — diagnóstico do ambiente."""
+"""pskt doctor — environment diagnostics."""
 from __future__ import annotations
 
 import sys
@@ -14,7 +14,7 @@ def run() -> None:
     table = Table(title="pskt doctor", show_header=True, header_style="bold")
     table.add_column("Check", no_wrap=True)
     table.add_column("Status", no_wrap=True, justify="center")
-    table.add_column("Detalhes", overflow="fold")
+    table.add_column("Details", overflow="fold")
 
     failures = 0
 
@@ -33,9 +33,9 @@ def run() -> None:
     git_v = git_ops.git_version()
     git_ok = git_v is not None
     table.add_row(
-        "git instalado",
+        "git installed",
         "[ok]✓[/ok]" if git_ok else "[err]✗[/err]",
-        git_v or "git não encontrado no PATH",
+        git_v or "git not found in PATH",
     )
     if not git_ok:
         failures += 1
@@ -48,13 +48,13 @@ def run() -> None:
             cfg = config.load()
             table.add_row("config.toml", "[ok]✓[/ok]", str(cfg_path))
         except (ValueError, OSError) as e:
-            table.add_row("config.toml", "[err]✗[/err]", f"corrompido: {e}")
+            table.add_row("config.toml", "[err]✗[/err]", f"corrupted: {e}")
             failures += 1
     else:
         table.add_row(
             "config.toml",
             "[err]✗[/err]",
-            f"ausente em {cfg_path} (rode `pskt init`)",
+            f"missing at {cfg_path} (run `pskt init`)",
         )
         failures += 1
 
@@ -66,41 +66,41 @@ def run() -> None:
         table.add_row(
             "workspace ~/.pskt/",
             "[err]✗[/err]",
-            f"{ws} existe mas não é um repo git",
+            f"{ws} exists but is not a git repo",
         )
         failures += 1
     else:
         table.add_row(
             "workspace ~/.pskt/",
             "[err]✗[/err]",
-            f"ausente (rode `pskt init`)",
+            f"missing (run `pskt init`)",
         )
         failures += 1
 
-    # 5. token (só se config diz HTTPS)
+    # 5. token (only if config says HTTPS)
     if cfg is not None:
         if cfg.auth_method == "https":
             tok_method = auth.storage_method()
             if tok_method == "keyring":
-                table.add_row("Token", "[ok]✓[/ok]", "armazenado no keyring do OS")
+                table.add_row("Token", "[ok]✓[/ok]", "stored in the OS keyring")
             elif tok_method == "file":
                 table.add_row(
                     "Token",
                     "[warn]✓[/warn]",
-                    f"em {auth.token_file_path()} (fallback chmod 600 — keyring do OS indisponível)",
+                    f"at {auth.token_file_path()} (chmod 600 fallback — OS keyring unavailable)",
                 )
             else:
                 table.add_row(
                     "Token",
                     "[err]✗[/err]",
-                    "ausente — rode `pskt init --force` pra reconfigurar",
+                    "missing — run `pskt init --force` to reconfigure",
                 )
                 failures += 1
         else:
             table.add_row(
                 "Auth method",
                 "[muted]—[/muted]",
-                "SSH (autenticação delegada ao ssh-agent / chave SSH do sistema)",
+                "SSH (auth delegated to ssh-agent / SSH key)",
             )
 
     # 6. registry reachable
@@ -109,28 +109,28 @@ def run() -> None:
         try:
             git_ops.ls_remote(cfg.registry_url, token=token)
             table.add_row(
-                "Registry remoto acessível",
+                "Remote registry reachable",
                 "[ok]✓[/ok]",
                 cfg.registry_url,
             )
         except git_ops.GitError as e:
             table.add_row(
-                "Registry remoto acessível",
+                "Remote registry reachable",
                 "[err]✗[/err]",
                 f"{cfg.registry_url}\n{e}",
             )
             failures += 1
     else:
         table.add_row(
-            "Registry remoto acessível",
+            "Remote registry reachable",
             "[muted]—[/muted]",
-            "(rode `pskt init` primeiro)",
+            "(run `pskt init` first)",
         )
 
     ui.console.print(table)
 
     if failures == 0:
-        ui.ok("Tudo certo.")
+        ui.ok("All good.")
     else:
-        ui.error(f"{failures} check(s) com problema.")
+        ui.error(f"{failures} check(s) failed.")
         raise typer.Exit(code=1)

@@ -1,23 +1,23 @@
-"""Parser do manifest.toml de um pacote.
+"""Parser for a package's manifest.toml.
 
 Schema:
     [package]
-    name = "..."        (obrigatório)
-    version = "..."     (obrigatório)
-    description = "..." (opcional)
-    author = "..."      (opcional)
+    name = "..."        (required)
+    version = "..."     (required)
+    description = "..." (optional)
+    author = "..."      (optional)
 
-    [update]                 (opcional)
-    preserve = [             (opcional)
-      "agent-memory/foo/MEMORY.md",   # arquivo exato
-      "agent-memory/foo/notes/",      # pasta inteira (terminada em / = recursivo)
+    [update]                 (optional)
+    preserve = [             (optional)
+      "agent-memory/foo/MEMORY.md",   # exact file
+      "agent-memory/foo/notes/",      # whole folder (trailing / = recursive)
     ]
 
-Paths em `preserve` são RELATIVOS ao .claude/ do scope onde o pacote será
-instalado (ou seja: mesmo formato dos paths que o pacote produz). Em update,
-arquivos que batem com algum pattern e já existem no destino não são tocados.
-Em install (primeira vez), são tratados como qualquer outro arquivo (criados
-como template).
+Paths in `preserve` are RELATIVE to the .claude/ of the scope where the
+package will be installed (i.e. same format as the paths the package
+produces). On update, files matching any pattern that already exist in
+the destination are left untouched. On first install they are treated
+like any other file (created as templates).
 """
 from __future__ import annotations
 
@@ -41,39 +41,39 @@ class Manifest:
 
     @property
     def display_description(self) -> str:
-        return self.description or "[muted](sem descrição)[/muted]"
+        return self.description or "[muted](no description)[/muted]"
 
 
 def load(path: Path) -> Manifest:
     if not path.exists():
-        raise ManifestError(f"manifest.toml não encontrado em {path}")
+        raise ManifestError(f"manifest.toml not found at {path}")
     try:
         with path.open("rb") as f:
             data = tomllib.load(f)
     except tomllib.TOMLDecodeError as e:
-        raise ManifestError(f"manifest.toml inválido em {path}: {e}") from e
+        raise ManifestError(f"invalid manifest.toml at {path}: {e}") from e
 
     pkg = data.get("package")
     if not isinstance(pkg, dict):
-        raise ManifestError(f"manifest.toml em {path}: faltando seção [package]")
+        raise ManifestError(f"manifest.toml at {path}: missing [package] section")
 
     name = pkg.get("name")
     version = pkg.get("version")
     if not isinstance(name, str) or not name.strip():
-        raise ManifestError(f"manifest.toml em {path}: package.name ausente ou inválido")
+        raise ManifestError(f"manifest.toml at {path}: package.name missing or invalid")
     if not isinstance(version, str) or not version.strip():
-        raise ManifestError(f"manifest.toml em {path}: package.version ausente ou inválido")
+        raise ManifestError(f"manifest.toml at {path}: package.version missing or invalid")
 
     desc = pkg.get("description")
     author = pkg.get("author")
 
     update_section = data.get("update", {}) or {}
     if not isinstance(update_section, dict):
-        raise ManifestError(f"manifest.toml em {path}: [update] deve ser uma tabela")
+        raise ManifestError(f"manifest.toml at {path}: [update] must be a table")
     raw_preserve = update_section.get("preserve", []) or []
     if not isinstance(raw_preserve, list):
         raise ManifestError(
-            f"manifest.toml em {path}: update.preserve deve ser uma lista de strings"
+            f"manifest.toml at {path}: update.preserve must be a list of strings"
         )
     preserve: list[str] = []
     for item in raw_preserve:
@@ -91,11 +91,11 @@ def load(path: Path) -> Manifest:
 
 
 def matches_preserve(relative: str | Path, patterns: Iterable[str]) -> bool:
-    """Path relativo bate com algum pattern de preserve?
+    """Does the relative path match any preserve pattern?
 
-    Formatos suportados:
-    - Arquivo exato: 'agent-memory/foo/MEMORY.md' — bate só nesse path
-    - Pasta recursiva: 'agent-memory/foo/' — bate em qualquer descendente
+    Supported formats:
+    - Exact file: 'agent-memory/foo/MEMORY.md' — matches only that path
+    - Recursive folder: 'agent-memory/foo/' — matches any descendant
     """
     spath = str(relative).replace("\\", "/").lstrip("./")
     for pat in patterns:

@@ -41,8 +41,8 @@ for py in python3.13 python3.12 python3.11 python3 python; do
 done
 
 if [ -z "$PYTHON_BIN" ]; then
-  red "✗ Python ${PYTHON_MIN_MAJOR}.${PYTHON_MIN_MINOR}+ não encontrado no PATH."
-  yellow "  Instale antes de continuar:"
+  red "✗ Python ${PYTHON_MIN_MAJOR}.${PYTHON_MIN_MINOR}+ not found in PATH."
+  yellow "  Install it before continuing:"
   echo "    macOS:         brew install python@3.12"
   echo "    Ubuntu/Debian: sudo apt install python3.12 python3.12-venv"
   echo "    Fedora:        sudo dnf install python3.12"
@@ -53,7 +53,7 @@ green "✓ Python: $($PYTHON_BIN --version 2>&1)"
 
 # --- 2. ensure pipx ------------------------------------------------------
 if ! command -v pipx >/dev/null 2>&1; then
-  cyan "→ pipx não encontrado, instalando via pip --user..."
+  cyan "→ pipx not found, installing via pip --user..."
 
   # Ensure $PYTHON_BIN has its own pip (avoids picking up an older system pip
   # that may rely on distutils, removed in 3.12).
@@ -63,8 +63,8 @@ if ! command -v pipx >/dev/null 2>&1; then
   # that enforce PEP 668 on the user site.
   if ! "$PYTHON_BIN" -m pip install --user --upgrade --quiet pipx 2>/dev/null; then
     if ! "$PYTHON_BIN" -m pip install --user --upgrade --quiet --break-system-packages pipx; then
-      red "✗ Falha ao instalar pipx."
-      yellow "  Tente manualmente:"
+      red "✗ Failed to install pipx."
+      yellow "  Try manually:"
       echo "    $PYTHON_BIN -m ensurepip --upgrade --user"
       echo "    $PYTHON_BIN -m pip install --user pipx"
       exit 1
@@ -81,9 +81,9 @@ if ! command -v pipx >/dev/null 2>&1; then
   fi
 
   if ! command -v pipx >/dev/null 2>&1; then
-    red "✗ pipx instalado mas não está no PATH."
-    yellow "  Adicione ao rc do seu shell:  export PATH=\"$USER_BIN:\$PATH\""
-    yellow "  Reabra o terminal e rode este script novamente."
+    red "✗ pipx installed but not in PATH."
+    yellow "  Add this to your shell rc:  export PATH=\"$USER_BIN:\$PATH\""
+    yellow "  Reopen your terminal and run this script again."
     exit 1
   fi
 
@@ -93,9 +93,9 @@ fi
 green "✓ pipx: $(pipx --version 2>/dev/null || echo 'available')"
 
 # --- 3. install perskent -------------------------------------------------
-cyan "→ Instalando perskent (pipx install --force git+${REPO_URL})..."
+cyan "→ Installing perskent (pipx install --force git+${REPO_URL})..."
 if ! pipx install --force "git+${REPO_URL}"; then
-  red "✗ Falha ao instalar perskent via pipx."
+  red "✗ Failed to install perskent via pipx."
   exit 1
 fi
 
@@ -112,10 +112,10 @@ fi
 if command -v pskt >/dev/null 2>&1; then
   green "✓ $(pskt --version)"
   echo
-  cyan "Pronto. Próximos passos:"
-  echo "  pskt init       # configura o registry remoto (URL + token)"
-  echo "  pskt --help     # lista todos os comandos"
+  cyan "Done. Next steps:"
+  echo "  pskt init       # configure your remote registry (URL + token)"
+  echo "  pskt --help     # list all commands"
 else
-  yellow "! perskent foi instalado mas 'pskt' não está no PATH desta sessão."
-  yellow "  Reabra o terminal e rode 'pskt --version' pra confirmar."
+  yellow "! perskent was installed but 'pskt' is not in PATH for this session."
+  yellow "  Reopen your terminal and run 'pskt --version' to confirm."
 fi

@@ -1,4 +1,4 @@
-"""pskt search <termo> — busca em nome/descrição."""
+"""pskt search <term> — search by name or description."""
 from __future__ import annotations
 
 import typer
@@ -9,14 +9,14 @@ from perskent.paths import workspace_dir
 
 
 def run(
-    term: str = typer.Argument(..., help="Termo de busca (case-insensitive)"),
+    term: str = typer.Argument(..., help="Search term (case-insensitive)"),
 ) -> None:
     if not config.exists():
-        ui.die("perskent não inicializado. Rode `pskt init` primeiro.")
+        ui.die("perskent is not initialized. Run `pskt init` first.")
 
     needle = term.strip().lower()
     if not needle:
-        ui.die("Termo de busca não pode ser vazio.")
+        ui.die("Search term cannot be empty.")
 
     packages = registry_scan.scan(workspace_dir())
     matches = []
@@ -26,18 +26,18 @@ def run(
             matches.append(pkg)
 
     if not matches:
-        ui.warn(f"Nenhum pacote encontrado pra '{term}'.")
+        ui.warn(f"No packages found for '{term}'.")
         return
 
     table = Table(
-        title=f"Resultados pra '{term}' ({len(matches)})",
+        title=f"Results for '{term}' ({len(matches)})",
         show_header=True,
         header_style="bold",
     )
-    table.add_column("Tipo", no_wrap=True)
-    table.add_column("Nome", no_wrap=True)
-    table.add_column("Versão", no_wrap=True)
-    table.add_column("Descrição", overflow="fold")
+    table.add_column("Kind", no_wrap=True)
+    table.add_column("Name", no_wrap=True)
+    table.add_column("Version", no_wrap=True)
+    table.add_column("Description", overflow="fold")
     for pkg in matches:
         table.add_row(
             pkg.kind,
