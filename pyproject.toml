@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "perskent"
-version = "0.4.0"
+version = "0.5.0"
 description = "CLI para gerenciar skills, agents e commands do Claude Code via repositório Git privado."
 readme = { content-type = "text/markdown", text = "perskent — gerenciador de pacotes para Claude Code via Git." }
 requires-python = ">=3.11"

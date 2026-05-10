@@ -41,6 +41,7 @@ pskt install my-skill project     # install in ./.claude/ (this project only)
 |---|---|
 | `pskt init` | Configure remote registry URL and clone it into `~/.pskt/` |
 | `pskt doctor` | Diagnostics (Python, git, paths, token, reachability) |
+| `pskt status` | Consolidated view: workspace state, registry packages, installations (outdated/orphaned) |
 | `pskt sync` | `git pull` on the local workspace |
 | `pskt find remote` | List packages available in the registry |
 | `pskt find local` | List installed packages (root + project) |
@@ -124,6 +125,34 @@ On `pskt update`, files whose paths match a `preserve` pattern are **not overwri
 - **SSH**: delegated to `ssh-agent` / your SSH key — no token managed by the CLI.
 
 The choice is automatic based on the URL form provided to `pskt init`.
+
+## Shell completions
+
+perskent ships tab completion for bash, zsh, fish, and PowerShell (via Typer).
+
+Install it for your current shell:
+
+```bash
+pskt --install-completion
+```
+
+The output prints which rc file was modified. Reload your shell (or `source` the rc file) and tab completion kicks in:
+
+```bash
+pskt <TAB>             # lists commands (init, doctor, status, install, ...)
+pskt --<TAB>           # lists global flags
+pskt install --<TAB>   # lists flags for the install subcommand
+```
+
+To preview the completion script without installing it:
+
+```bash
+pskt --show-completion
+```
+
+Both commands also accept an explicit shell: `pskt --install-completion bash`, `pskt --show-completion zsh`, etc.
+
+Note: completion of dynamic values (package names from the registry) is not wired up — completion covers commands and flags only.
 
 ## Requirements
 

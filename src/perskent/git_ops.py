@@ -171,6 +171,25 @@ def commits_between(repo: Path, old: str, new: str) -> int:
         raise GitError(f"unexpected rev-list output: {result.stdout!r}") from e
 
 
+def unpushed_commits(repo: Path, branch: str = "main") -> int:
+    """Count local commits ahead of origin/<branch>. Returns 0 if upstream is
+    missing or the repo has no commits."""
+    try:
+        result = _run(
+            ["rev-list", "--count", f"origin/{branch}..HEAD"],
+            cwd=repo,
+            check=False,
+        )
+    except GitError:
+        return 0
+    if result.returncode != 0:
+        return 0
+    try:
+        return int(result.stdout.strip())
+    except ValueError:
+        return 0
+
+
 def status_porcelain(repo: Path, path_filter: str | None = None) -> list[str]:
     """Return lines from `git status --porcelain` (filtered to a path if given)."""
     args = ["status", "--porcelain"]

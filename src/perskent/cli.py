@@ -13,6 +13,7 @@ from perskent.commands import push as push_cmd
 from perskent.commands import remove as remove_cmd
 from perskent.commands import search as search_cmd
 from perskent.commands import show as show_cmd
+from perskent.commands import status as status_cmd
 from perskent.commands import sync as sync_cmd
 from perskent.commands import update as update_cmd
 
@@ -53,6 +54,11 @@ app.command(
     "doctor",
     help="Environment diagnostics: git, paths, token, registry reachability.",
 )(doctor_cmd.run)
+
+app.command(
+    "status",
+    help="Consolidated view: workspace state, registry packages, installations (outdated/orphaned).",
+)(status_cmd.run)
 
 app.command(
     "sync",
