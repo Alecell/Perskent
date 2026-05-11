@@ -1,4 +1,8 @@
-"""pskt update <name>."""
+"""pskt update [name] [scope].
+
+If `scope` is omitted, prompts for `root` | `project`.
+If `name` is omitted, prompts from the packages installed in that scope.
+"""
 from __future__ import annotations
 
 import datetime as dt
@@ -20,39 +24,64 @@ def _dest_root_for(scope: str) -> Path:
     return claude_project_dir()
 
 
-def _resolve_install_record(name: str):
-    """Returns (scope, record) of the installed package. Errors clearly on 0 or >1 matches."""
-    if "/" in name:
-        for scope_candidate in installed_mod.SCOPES:
-            state = installed_mod.load(scope_candidate)
-            if name in state:
-                return scope_candidate, state[name]
-        ui.die(f"'{name}' is not installed in any scope.")
+def _prompt_installed_package(scope: str, state: dict) -> str:
+    if not state:
+        ui.die(f"No packages installed in {scope}.")
+    choice_map = {
+        f"{q}  v{r.version}": q
+        for q, r in sorted(state.items())
+    }
+    choice = ui.ask_select(
+        f"Which package to update in {scope}?",
+        choices=list(choice_map.keys()),
+    )
+    return choice_map[choice]
 
-    installations = installed_mod.find_by_name(name)
-    if not installations:
-        ui.die(f"'{name}' is not installed in any scope.")
-    if len(installations) > 1:
-        ui.warn(f"'{name}' is ambiguous:")
-        for inst in installations:
-            ui.console.print(
-                f"  [muted]→[/muted] {inst.qualified_name} ({inst.scope}) v{inst.version}"
-            )
-        ui.die("Use the qualified name, e.g. `pskt update agents/<name>`.")
-    inst = installations[0]
-    return inst.scope, inst
+
+def _resolve_install_record(name: str, scope: str):
+    """Returns the InstalledPackage in the given scope. Errors clearly on 0 or >1 matches."""
+    state = installed_mod.load(scope)
+
+    if "/" in name:
+        record = state.get(name)
+        if record is None:
+            ui.die(f"'{name}' is not installed in {scope}.")
+        return record
+
+    candidates = [(q, r) for q, r in state.items() if r.name == name]
+    if not candidates:
+        ui.die(f"'{name}' is not installed in {scope}.")
+    if len(candidates) > 1:
+        ui.warn(f"'{name}' is ambiguous in {scope}:")
+        for q, r in candidates:
+            ui.console.print(f"  [muted]→[/muted] {q} v{r.version}")
+        ui.die("Use the qualified name, e.g. `pskt update agents/<name> <scope>`.")
+    return candidates[0][1]
 
 
 def run(
     name: str = typer.Argument(
-        ...,
-        help="Package name (or <kind>s/<name> to disambiguate)",
+        None,
+        help="Package name (or <kind>s/<name>); omit for an interactive prompt.",
+    ),
+    scope: str = typer.Argument(
+        None,
+        help="root | project (omit for an interactive prompt)",
     ),
 ) -> None:
     if not config.exists():
         ui.die("perskent is not initialized. Run `pskt init` first.")
 
-    scope, record = _resolve_install_record(name)
+    if scope is None:
+        scope = ui.ask_select("Scope?", choices=list(installed_mod.SCOPES))
+    if scope not in installed_mod.SCOPES:
+        ui.die(f"Invalid scope: {scope!r}. Use 'root' or 'project'.")
+
+    if name is None:
+        state = installed_mod.load(scope)
+        name = _prompt_installed_package(scope, state)
+
+    record = _resolve_install_record(name, scope)
     dest_root = _dest_root_for(scope)
 
     matches = registry_scan.find(workspace_dir(), record.qualified_name)

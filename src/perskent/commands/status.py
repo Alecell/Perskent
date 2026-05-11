@@ -105,7 +105,7 @@ def run() -> None:
             ui.console.print(
                 f"    {qual} [muted]({scope})[/muted]  "
                 f"[warn]v{inst_v}[/warn] → [ok]v{reg_v}[/ok]  "
-                f"[muted](run `pskt update {qual}`)[/muted]"
+                f"[muted](run `pskt update {qual} {scope}`)[/muted]"
             )
 
     if orphaned:

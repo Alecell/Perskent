@@ -47,10 +47,10 @@ pskt install my-skill project     # install in ./.claude/ (this project only)
 | `pskt find local` | List installed packages (root + project) |
 | `pskt show <name>` | Show details of a package |
 | `pskt search <term>` | Search by name or description |
-| `pskt install <name> [root\|project] [--force]` | Install a package |
-| `pskt remove <name> <root\|project>` | Uninstall a package |
-| `pskt update <name>` | Upgrade a package, preserving files marked in `[update].preserve` |
-| `pskt push <name> [-m <msg>]` | Bump + commit + push a locally-edited package |
+| `pskt install [<name>] [<root\|project>] [--force]` | Install a package (interactive picker if args omitted) |
+| `pskt remove [<name>] [<root\|project>]` | Uninstall a package (interactive picker if args omitted) |
+| `pskt update [<name>] [<root\|project>]` | Upgrade a package, preserving files marked in `[update].preserve` (interactive picker if args omitted) |
+| `pskt push [<name>] [-m <msg>]` | Bump + commit + push a locally-edited package (interactive picker if name omitted) |
 | `pskt destroy <name> [-y]` | Permanently delete a package from the registry (workspace + remote). Does not affect installed copies. |
 
 For any command that accepts `<name>`: if packages with the same name exist in multiple kinds, use the qualified name — `agents/my-thing`, `skills/my-thing`, `commands/my-thing`.

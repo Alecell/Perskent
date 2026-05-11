@@ -1,7 +1,8 @@
 """pskt push <name> — bump + commit + push of a package.
 
 Flow:
-1. Resolves the package (with kind disambiguation).
+1. Resolves the package (with kind disambiguation). If `name` is omitted,
+   prompts interactively from the list of workspace packages.
 2. If the folder has no `manifest.toml`, generates one interactively
    (description, author, initial version 0.1.0). Otherwise, shows git
    changes for the package and prompts for a bump (patch/minor/major/no bump).
@@ -15,7 +16,7 @@ from pathlib import Path
 
 import typer
 
-from perskent import auth, config, git_ops, ui
+from perskent import auth, config, git_ops, registry_scan, ui
 from perskent import manifest as manifest_mod
 from perskent.paths import workspace_dir
 from perskent.registry_scan import KIND_FOLDERS, KIND_SINGULAR
@@ -120,10 +121,22 @@ def _generate_manifest(pkg_dir: Path, name: str, kind: str) -> None:
     ui.ok(f"manifest.toml created: {manifest_path}")
 
 
+def _prompt_workspace_package() -> str:
+    packages = registry_scan.scan(workspace_dir())
+    if not packages:
+        ui.die(
+            f"No packages with a manifest in {workspace_dir()}. "
+            "Create ~/.pskt/<agents|skills|commands>/<name>/ first "
+            "(then pass the name explicitly to bootstrap a manifest)."
+        )
+    labels = [p.qualified_name for p in packages]
+    return ui.ask_select("Which package to push?", choices=labels)
+
+
 def run(
     name: str = typer.Argument(
-        ...,
-        help="Package name (or <kind>s/<name> to disambiguate)",
+        None,
+        help="Package name (or <kind>s/<name>); omit for an interactive prompt.",
     ),
     message: str = typer.Option(
         None,
@@ -136,6 +149,9 @@ def run(
         ui.die("perskent is not initialized. Run `pskt init` first.")
     cfg = config.load()
     assert cfg is not None
+
+    if name is None:
+        name = _prompt_workspace_package()
 
     pkg_dir, kind, pkg_name = _resolve_package_dir(name)
     rel_path = pkg_dir.relative_to(workspace_dir())

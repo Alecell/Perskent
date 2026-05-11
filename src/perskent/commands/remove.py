@@ -1,4 +1,8 @@
-"""pskt remove <name> <scope>."""
+"""pskt remove [name] [scope].
+
+If `scope` is omitted, prompts for `root` | `project`.
+If `name` is omitted, prompts from the packages installed in that scope.
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -16,21 +20,44 @@ def _dest_root_for(scope: str) -> Path:
     return claude_project_dir()
 
 
+def _prompt_installed_package(scope: str, state: dict, verb: str) -> str:
+    if not state:
+        ui.die(f"No packages installed in {scope}.")
+    choice_map = {
+        f"{q}  v{r.version}": q
+        for q, r in sorted(state.items())
+    }
+    choice = ui.ask_select(
+        f"Which package to {verb} from {scope}?",
+        choices=list(choice_map.keys()),
+    )
+    return choice_map[choice]
+
+
 def run(
     name: str = typer.Argument(
-        ...,
-        help="Package name (or <kind>s/<name> to disambiguate)",
+        None,
+        help="Package name (or <kind>s/<name>); omit for an interactive prompt.",
     ),
-    scope: str = typer.Argument(..., help="root | project"),
+    scope: str = typer.Argument(
+        None,
+        help="root | project (omit for an interactive prompt)",
+    ),
 ) -> None:
     if not config.exists():
         ui.die("perskent is not initialized. Run `pskt init` first.")
+
+    if scope is None:
+        scope = ui.ask_select("Scope?", choices=list(installed_mod.SCOPES))
     if scope not in installed_mod.SCOPES:
         ui.die(f"Invalid scope: {scope!r}. Use 'root' or 'project'.")
 
     state = installed_mod.load(scope)
 
-    if "/" in name:
+    if name is None:
+        target_qualified = _prompt_installed_package(scope, state, "remove")
+        record = state[target_qualified]
+    elif "/" in name:
         target_qualified = name
         record = state.get(target_qualified)
         if record is None:

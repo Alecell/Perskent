@@ -1,4 +1,8 @@
-"""pskt install <name> [scope] [--force]."""
+"""pskt install [name] [scope] [--force].
+
+If `name` is omitted, prompts interactively from the list of registry packages.
+If `scope` is omitted, prompts for `root` | `project`.
+"""
 from __future__ import annotations
 
 import datetime as dt
@@ -19,10 +23,21 @@ def _dest_root_for(scope: str) -> Path:
     return claude_project_dir()
 
 
+def _prompt_registry_package() -> str:
+    packages = registry_scan.scan(workspace_dir())
+    if not packages:
+        ui.die(
+            f"Registry is empty at {workspace_dir()}. "
+            "Run `pskt sync` or `pskt find remote` first."
+        )
+    labels = [p.qualified_name for p in packages]
+    return ui.ask_select("Which package to install?", choices=labels)
+
+
 def run(
     name: str = typer.Argument(
-        ...,
-        help="Package name (or <kind>s/<name> to disambiguate)",
+        None,
+        help="Package name (or <kind>s/<name>); omit for an interactive prompt.",
     ),
     scope: str = typer.Argument(
         None,
@@ -37,6 +52,9 @@ def run(
 ) -> None:
     if not config.exists():
         ui.die("perskent is not initialized. Run `pskt init` first.")
+
+    if name is None:
+        name = _prompt_registry_package()
 
     matches = registry_scan.find(workspace_dir(), name)
     if not matches:
@@ -67,7 +85,7 @@ def run(
     if existing is not None and not force:
         ui.die(
             f"'{pkg.qualified_name}' is already installed in {scope} (v{existing.version}). "
-            f"Use `pskt update {pkg.qualified_name}` or `--force` to reinstall from scratch."
+            f"Use `pskt update {pkg.qualified_name} {scope}` or `--force` to reinstall from scratch."
         )
 
     skip_for_force: set[Path] = set()
