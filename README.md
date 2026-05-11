@@ -33,6 +33,7 @@ pskt init                         # configure the remote registry (your repo URL
 pskt find remote                  # list packages available in the registry
 pskt install my-agent root        # install in ~/.claude/ (global)
 pskt install my-skill project     # install in ./.claude/ (this project only)
+pskt install                      # or run without args for an interactive picker
 ```
 
 ## Commands
@@ -54,6 +55,34 @@ pskt install my-skill project     # install in ./.claude/ (this project only)
 | `pskt destroy <name> [-y]` | Permanently delete a package from the registry (workspace + remote). Does not affect installed copies. |
 
 For any command that accepts `<name>`: if packages with the same name exist in multiple kinds, use the qualified name — `agents/my-thing`, `skills/my-thing`, `commands/my-thing`.
+
+## Interactive prompts
+
+`push`, `install`, `remove`, and `update` accept their arguments interactively when omitted — arrow keys + enter:
+
+```bash
+pskt push        # picker for workspace packages
+pskt install     # picker for registry packages → scope picker
+pskt remove      # scope picker → picker for packages installed in that scope
+pskt update      # scope picker → picker for packages installed in that scope
+```
+
+Example output:
+
+```
+? Scope?
+  ❯ root
+    project
+
+? Which package to update in root?
+  ❯ agents/my-agent    v1.0.0
+    skills/helper      v0.3.0
+    commands/init      v0.2.0
+```
+
+Partial arguments still work — `pskt install foo` only prompts for the missing scope; `pskt update agents/foo root` runs non-interactively.
+
+For `remove` and `update`, scope must be provided (either as a positional argument or via the picker). This prevents silent updates of the wrong installation when a package is installed in both `root` and `project`.
 
 ## Concepts
 
