@@ -5,8 +5,27 @@ import shutil
 
 import typer
 
-from perskent import auth, config, git_ops, ui
+from perskent import auth, config, envs, git_ops, ui
 from perskent.paths import config_file, workspace_dir
+
+
+def _ask_code_agent(scope_label: str, detected: list[str]) -> str:
+    """Prompt for which code-agent to use in a given scope.
+
+    If exactly one is detected on PATH, it's offered first; if multiple are
+    detected, the list shows them ordered with non-detected at the bottom.
+    If none are detected, falls back to the full canonical list.
+    """
+    if detected:
+        rest = [e for e in envs.ENVS if e not in detected]
+        choices = detected + rest
+    else:
+        choices = list(envs.ENVS)
+    label = "detected" if detected else "none detected on PATH"
+    return ui.ask_select(
+        f"Which code-agent for {scope_label} scope? ({label})",
+        choices=choices,
+    )
 
 
 def run(
@@ -76,7 +95,20 @@ def run(
                 f"{auth.token_file_path()} (chmod 600)."
             )
 
-    config.save(config.Config(registry_url=url, auth_method=method))
+    detected = envs.detect_installed()
+    if detected:
+        ui.info(f"Code-agents detected on PATH: {', '.join(detected)}.")
+    else:
+        ui.info("No code-agent CLI detected on PATH — you can still pick one manually.")
+    code_agent_root = _ask_code_agent("root", detected)
+    code_agent_project = _ask_code_agent("project", detected)
+
+    config.save(config.Config(
+        registry_url=url,
+        auth_method=method,
+        code_agent_root=code_agent_root,
+        code_agent_project=code_agent_project,
+    ))
     ui.ok(f"Configuration saved at {config_file()}.")
 
     ui.info(f"Cloning the registry into {workspace_dir()}...")

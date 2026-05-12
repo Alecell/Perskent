@@ -10,18 +10,18 @@ from pathlib import Path
 
 import typer
 
-from perskent import config, git_ops, installer, ui
+from perskent import config, envs, git_ops, installer, ui
 from perskent import installed as installed_mod
 from perskent import manifest as manifest_mod
 from perskent import registry_scan
 from perskent.installed import InstalledPackage
-from perskent.paths import claude_project_dir, claude_root_dir, workspace_dir
+from perskent.paths import dest_project_dir, dest_root_dir, workspace_dir
 
 
-def _dest_root_for(scope: str) -> Path:
+def _dest_root_for(env: str, scope: str, kind: str) -> Path:
     if scope == installed_mod.ROOT:
-        return claude_root_dir()
-    return claude_project_dir()
+        return dest_root_dir(env, kind)
+    return dest_project_dir(env, kind)
 
 
 def _prompt_installed_package(scope: str, state: dict) -> str:
@@ -69,8 +69,7 @@ def run(
         help="root | project (omit for an interactive prompt)",
     ),
 ) -> None:
-    if not config.exists():
-        ui.die("perskent is not initialized. Run `pskt init` first.")
+    cfg = config.load_or_die()
 
     if scope is None:
         scope = ui.ask_select("Scope?", choices=list(installed_mod.SCOPES))
@@ -82,7 +81,24 @@ def run(
         name = _prompt_installed_package(scope, state)
 
     record = _resolve_install_record(name, scope)
-    dest_root = _dest_root_for(scope)
+
+    current_env = cfg.code_agent_root if scope == installed_mod.ROOT else cfg.code_agent_project
+    if record.env != current_env:
+        ui.warn(
+            f"Package was installed for code-agent '{record.env}', but {scope} scope is "
+            f"now configured for '{current_env}'. Updating in the original location."
+        )
+
+    # Defensive: the kind must still be supported by record.env. (It was at
+    # install time; this would only trip if SUPPORTED_KINDS shrank in a later
+    # perskent release.)
+    if not envs.supports_kind(record.env, record.kind):
+        ui.die(
+            f"Code-agent '{record.env}' no longer supports packages of kind "
+            f"'{record.kind}'. Run `pskt remove {record.qualified_name} {scope}` to clean up."
+        )
+
+    dest_root = _dest_root_for(record.env, scope, record.kind)
 
     matches = registry_scan.find(workspace_dir(), record.qualified_name)
     if not matches:
@@ -142,6 +158,7 @@ def run(
         kind=pkg.kind,
         version=new_version,
         scope=scope,
+        env=record.env,
         installed_at=now_iso,
         source_commit=head,
         installed_paths=final_paths,

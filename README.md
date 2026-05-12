@@ -1,8 +1,10 @@
 # perskent
 
-CLI for managing [Claude Code](https://claude.com/claude-code) skills, agents and commands via your own private Git repository — no central registry, no third-party host.
+CLI for managing AI code-agent packages (skills, agents, commands) via your own private Git repository — no central registry, no third-party host.
 
-You point `pskt` at your own repo (a private GitHub repo works fine), and the CLI handles installation, updates, versioning, and publishing of your packages to the `.claude/` of the chosen scope (global or per-project).
+You point `pskt` at your own repo (a private GitHub repo works fine), and the CLI handles installation, updates, versioning, and publishing of your packages to the chosen code-agent's directory at the chosen scope (global or per-project).
+
+**Supported code-agents:** [Claude Code](https://claude.com/claude-code), [opencode](https://opencode.ai), [Qwen Code](https://github.com/QwenLM/qwen-code), [OpenAI Codex CLI](https://github.com/openai/codex). You pick which one each scope targets at `pskt init` time — see [Code-agents](#code-agents) below.
 
 ## Installation
 
@@ -29,11 +31,12 @@ pipx upgrade perskent
 ## Quick start
 
 ```bash
-pskt init                         # configure the remote registry (your repo URL + token)
+pskt init                         # registry URL + token, and which code-agent each scope targets
 pskt find remote                  # list packages available in the registry
-pskt install my-agent root        # install in ~/.claude/ (global)
-pskt install my-skill project     # install in ./.claude/ (this project only)
+pskt install my-agent root        # install in the global dir of the chosen code-agent
+pskt install my-skill project     # install in the project dir of the chosen code-agent
 pskt install                      # or run without args for an interactive picker
+pskt code-agent opencode root     # later: switch the root scope to a different code-agent
 ```
 
 ## Commands
@@ -53,6 +56,7 @@ pskt install                      # or run without args for an interactive picke
 | `pskt update [<name>] [<root\|project>]` | Upgrade a package, preserving files marked in `[update].preserve` (interactive picker if args omitted) |
 | `pskt push [<name>] [-m <msg>]` | Bump + commit + push a locally-edited package (interactive picker if name omitted) |
 | `pskt destroy <name> [-y]` | Permanently delete a package from the registry (workspace + remote). Does not affect installed copies. |
+| `pskt code-agent [<tool>] [<root\|project>]` | Show or change which code-agent each scope targets. Without args, shows the current config. |
 
 For any command that accepts `<name>`: if packages with the same name exist in multiple kinds, use the qualified name — `agents/my-thing`, `skills/my-thing`, `commands/my-thing`.
 
@@ -90,14 +94,37 @@ For `remove` and `update`, scope must be provided (either as a positional argume
 
 - **Remote registry** — your private Git repository (e.g. `your-user/my-registry`) that stores versioned packages.
 - **Local workspace** — clone of the registry at `~/.pskt/`. This is where you **edit** packages; `pskt push` syncs them to the remote.
-- **Installation** — copies files from the local workspace into the `.claude/` consumed by Claude Code (not a symlink; Claude Code reads physical files).
+- **Installation** — copies files from the local workspace into the directory consumed by the chosen code-agent (not a symlink; code-agents read physical files).
 
 ### Scopes (root vs project)
 
-- **`root`** — installs into `~/.claude/`, available across all projects.
-- **`project`** — installs into `./.claude/` (relative to the current directory), this project only.
+- **`root`** — installs into the chosen code-agent's global directory (e.g. `~/.claude/`, `~/.config/opencode/`), available across all projects.
+- **`project`** — installs into the chosen code-agent's project-local directory (e.g. `./.claude/`, `./.opencode/`), this project only.
 
-`pskt find local` shows both scopes simultaneously when run from inside a project.
+The two scopes can target different code-agents. `pskt find local` shows both scopes simultaneously when run from inside a project, with the code-agent of each scope labelled.
+
+### Code-agents
+
+`pskt init` asks which code-agent each scope targets and persists the choice. CLIs found on `PATH` are offered first as defaults.
+
+| Code-agent | Root install dir | Project install dir |
+|---|---|---|
+| `claude` (Claude Code) | `~/.claude/` | `./.claude/` |
+| `opencode` | `~/.config/opencode/` | `./.opencode/` |
+| `qwen` (Qwen Code) | `~/.qwen/` | `./.qwen/` |
+| `codex` (OpenAI Codex CLI) | `~/.codex/` | `./.codex/` |
+
+Switch later with `pskt code-agent <tool> [root|project]`. Without arguments, `pskt code-agent` prints the current configuration.
+
+**Per-code-agent supported kinds.** perskent only orchestrates files — it does not edit the code-agent's `settings.json` / `config.toml`. Some code-agents accept a given kind only inline in their config, not as a standalone file; in those cases `pskt install` refuses the kind with a clear message:
+
+| Kind     | claude | opencode | qwen | codex                  |
+|----------|:------:|:--------:|:----:|:----------------------:|
+| `agent`    |   ✓    |    ✓     |  ✓   | ✗ (inline in `config.toml`) |
+| `skill`    |   ✓    |    ✓     |  ✓   | ✓ (installed into `~/.agents/skills/`, by Codex convention) |
+| `command`  |   ✓    |    ✓     |  ✓   | ✗ (no file-based slash commands)   |
+
+The file content (frontmatter format, etc.) is the package author's responsibility — perskent never reads or rewrites the files it copies, so a package written for one code-agent's frontmatter conventions may not work on another without adjustments.
 
 ### Registry layout
 
@@ -106,19 +133,19 @@ For `remove` and `update`, scope must be provided (either as a positional argume
 ├── agents/
 │   └── my-agent/
 │       ├── manifest.toml
-│       ├── agents/my-agent.md           → .claude/agents/my-agent.md
-│       └── agent-memory/my-agent/...    → .claude/agent-memory/my-agent/...
+│       ├── agents/my-agent.md           → <code-agent-dir>/agents/my-agent.md
+│       └── agent-memory/my-agent/...    → <code-agent-dir>/agent-memory/my-agent/...
 ├── skills/
 │   └── my-skill/
 │       ├── manifest.toml
-│       └── skills/my-skill/SKILL.md     → .claude/skills/my-skill/SKILL.md
+│       └── skills/my-skill/SKILL.md     → <code-agent-dir>/skills/my-skill/SKILL.md
 └── commands/
     └── my-cmd/
         ├── manifest.toml
-        └── commands/my-cmd.md           → .claude/commands/my-cmd.md
+        └── commands/my-cmd.md           → <code-agent-dir>/commands/my-cmd.md
 ```
 
-The parent folder (`agents`, `skills`, `commands`) signals the package **kind**. Each package's contents (except `manifest.toml`) are mirrored **1:1** into the chosen scope's `.claude/` — no renaming, no imposed layout convention. The author decides the structure inside the package.
+The parent folder (`agents`, `skills`, `commands`) signals the package **kind**. Each package's contents (except `manifest.toml`) are mirrored **1:1** into the code-agent's directory for the chosen scope — no renaming, no imposed layout convention. The author decides the structure inside the package.
 
 ## Manifest
 

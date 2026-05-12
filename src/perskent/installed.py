@@ -2,7 +2,8 @@
 
 Persisted as TOML:
 - root scope:    ~/.config/pskt/installed.toml
-- project scope: ./.claude/.pskt-installed.toml
+- project scope: ./<env-base>/.pskt-installed.toml
+  (e.g. ./.claude/.pskt-installed.toml, ./.opencode/.pskt-installed.toml)
 
 Schema (the dict key is the package's `qualified_name`: <kind>s/<name>):
 
@@ -10,15 +11,24 @@ Schema (the dict key is the package's `qualified_name`: <kind>s/<name>):
     name = "my-agent"
     kind = "agent"
     version = "1.0.0"
+    env = "claude"                    # code-agent at install time
     installed_at = "2026-05-10T17:30:00Z"
     source_commit = "abc123"          # optional
-    installed_paths = [               # paths relative to the scope's .claude/
+    installed_paths = [               # paths relative to the package's dest dir
       "agents/my-agent.md",
       "agent-memory/my-agent/context.md",
     ]
 
+`env` is the code-agent the package was installed for. It is persisted so
+that `update`/`remove` continue to operate on the original install location
+even if the user later switches the scope's code-agent via `pskt code-agent`.
+
 The qualified key lets `agents/foo` and `skills/foo` coexist as installed
 packages without colliding.
+
+Legacy `installed.toml` files (from before multi-code-agent support) do not
+have the `env` field. They are loaded with `env = "claude"`, which was the
+only code-agent supported back then.
 """
 from __future__ import annotations
 
@@ -41,6 +51,7 @@ class InstalledPackage:
     kind: str          # "agent" | "skill" | "command"
     version: str
     scope: str         # "root" | "project"
+    env: str           # code-agent at install time: "claude" | "opencode" | "qwen" | "codex"
     installed_at: str
     source_commit: str | None
     installed_paths: list[str]
@@ -54,7 +65,11 @@ def _registry_path(scope: str, project_root: Path | None = None) -> Path:
     if scope == ROOT:
         return installed_root_file()
     if scope == PROJECT:
-        return installed_project_file(project_root)
+        # Lazy import: paths→envs at module load is fine, but config pulls ui
+        # via load_or_die so we defer it to avoid a startup cycle.
+        from perskent import config as config_mod
+        cfg = config_mod.load_or_die()
+        return installed_project_file(cfg.code_agent_project, project_root)
     raise ValueError(f"invalid scope: {scope!r}. Use 'root' or 'project'.")
 
 
@@ -73,11 +88,15 @@ def load(scope: str, project_root: Path | None = None) -> dict[str, InstalledPac
             continue
         name = str(entry.get("name", "")) or qualified.split("/", 1)[-1]
         kind = str(entry.get("kind", "")) or "unknown"
+        # Legacy records (pre multi-code-agent) didn't store env. Back then
+        # the only supported code-agent was Claude Code.
+        env = str(entry.get("env", "")) or "claude"
         packages[qualified] = InstalledPackage(
             name=name,
             kind=kind,
             version=str(entry.get("version", "")),
             scope=scope,
+            env=env,
             installed_at=str(entry.get("installed_at", "")),
             source_commit=entry.get("source_commit"),
             installed_paths=list(entry.get("installed_paths", [])),
@@ -94,6 +113,7 @@ def save(packages: dict[str, InstalledPackage], scope: str, project_root: Path |
             "name": pkg.name,
             "kind": pkg.kind,
             "version": pkg.version,
+            "env": pkg.env,
             "installed_at": pkg.installed_at,
             "installed_paths": pkg.installed_paths,
         }

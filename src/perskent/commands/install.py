@@ -10,17 +10,21 @@ from pathlib import Path
 
 import typer
 
-from perskent import config, git_ops, installer, ui
+from perskent import config, envs, git_ops, installer, ui
 from perskent import installed as installed_mod
 from perskent import registry_scan
 from perskent.installed import InstalledPackage
-from perskent.paths import claude_project_dir, claude_root_dir, workspace_dir
+from perskent.paths import dest_project_dir, dest_root_dir, workspace_dir
 
 
-def _dest_root_for(scope: str) -> Path:
+def _resolve_env(cfg: config.Config, scope: str) -> str:
+    return cfg.code_agent_root if scope == installed_mod.ROOT else cfg.code_agent_project
+
+
+def _dest_root_for(env: str, scope: str, kind: str) -> Path:
     if scope == installed_mod.ROOT:
-        return claude_root_dir()
-    return claude_project_dir()
+        return dest_root_dir(env, kind)
+    return dest_project_dir(env, kind)
 
 
 def _prompt_registry_package() -> str:
@@ -50,8 +54,7 @@ def run(
         help="Overwrite conflicting existing files (warning: may erase user work)",
     ),
 ) -> None:
-    if not config.exists():
-        ui.die("perskent is not initialized. Run `pskt init` first.")
+    cfg = config.load_or_die()
 
     if name is None:
         name = _prompt_registry_package()
@@ -78,7 +81,13 @@ def run(
     if scope not in installed_mod.SCOPES:
         ui.die(f"Invalid scope: {scope!r}. Use 'root' or 'project'.")
 
-    dest_root = _dest_root_for(scope)
+    env = _resolve_env(cfg, scope)
+    if not envs.supports_kind(env, pkg.kind):
+        ui.die(
+            f"Code-agent '{env}' does not support packages of kind '{pkg.kind}' "
+            f"as standalone files. Skipping install."
+        )
+    dest_root = _dest_root_for(env, scope, pkg.kind)
 
     state = installed_mod.load(scope)
     existing = state.get(pkg.qualified_name)
@@ -118,6 +127,7 @@ def run(
         kind=pkg.kind,
         version=pkg.manifest.version,
         scope=scope,
+        env=env,
         installed_at=now_iso,
         source_commit=head,
         installed_paths=[str(p) for p in copied],

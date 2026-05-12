@@ -13,11 +13,10 @@ Schema:
       "agent-memory/foo/notes/",      # whole folder (trailing / = recursive)
     ]
 
-Paths in `preserve` are RELATIVE to the .claude/ of the scope where the
-package will be installed (i.e. same format as the paths the package
-produces). On update, files matching any pattern that already exist in
-the destination are left untouched. On first install they are treated
-like any other file (created as templates).
+Paths in `preserve` are RELATIVE to the package's destination dir (same
+format as the paths the package produces). On update, files matching any
+pattern that already exist in the destination are left untouched. On
+first install they are treated like any other file (created as templates).
 """
 from __future__ import annotations
 

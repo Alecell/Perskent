@@ -50,7 +50,7 @@ def run(
     if files:
         ui.console.print(
             f"[bold]{len(files)} file(s) to install[/bold] "
-            f"[muted](relative to the chosen scope's .claude/):[/muted]"
+            f"[muted](relative to the destination dir of the chosen code-agent):[/muted]"
         )
         for f in files:
             ui.console.print(f"  [muted]→[/muted] {f}")

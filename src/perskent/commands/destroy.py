@@ -74,10 +74,7 @@ def run(
         help="Skip the confirmation prompt (for scripts / automation)",
     ),
 ) -> None:
-    if not config.exists():
-        ui.die("perskent is not initialized. Run `pskt init` first.")
-    cfg = config.load()
-    assert cfg is not None
+    cfg = config.load_or_die()
 
     pkg_dir, kind, pkg_name = _resolve_package_dir(name)
     rel_path = pkg_dir.relative_to(workspace_dir())
@@ -99,7 +96,7 @@ def run(
     ui.console.print(f"  [muted]→[/muted] remote registry ({cfg.registry_url})")
     ui.console.print()
     ui.console.print(
-        "[muted]Installed copies in .claude/ are not affected. "
+        "[muted]Installed copies in the code-agent's directory are not affected. "
         "Use `pskt remove` separately if you want to clean those up.[/muted]"
     )
     ui.console.print()

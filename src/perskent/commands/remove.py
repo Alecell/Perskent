@@ -11,13 +11,13 @@ import typer
 
 from perskent import config, installer, ui
 from perskent import installed as installed_mod
-from perskent.paths import claude_project_dir, claude_root_dir
+from perskent.paths import dest_project_dir, dest_root_dir
 
 
-def _dest_root_for(scope: str) -> Path:
+def _dest_root_for(env: str, scope: str, kind: str) -> Path:
     if scope == installed_mod.ROOT:
-        return claude_root_dir()
-    return claude_project_dir()
+        return dest_root_dir(env, kind)
+    return dest_project_dir(env, kind)
 
 
 def _prompt_installed_package(scope: str, state: dict, verb: str) -> str:
@@ -44,8 +44,7 @@ def run(
         help="root | project (omit for an interactive prompt)",
     ),
 ) -> None:
-    if not config.exists():
-        ui.die("perskent is not initialized. Run `pskt init` first.")
+    cfg = config.load_or_die()
 
     if scope is None:
         scope = ui.ask_select("Scope?", choices=list(installed_mod.SCOPES))
@@ -73,7 +72,13 @@ def run(
             ui.die("Use the qualified name, e.g. `pskt remove agents/<name> <scope>`.")
         target_qualified, record = candidates[0]
 
-    dest_root = _dest_root_for(scope)
+    current_env = cfg.code_agent_root if scope == installed_mod.ROOT else cfg.code_agent_project
+    if record.env != current_env:
+        ui.warn(
+            f"Package was installed for code-agent '{record.env}', but {scope} scope is "
+            f"now configured for '{current_env}'. Removing from the original location."
+        )
+    dest_root = _dest_root_for(record.env, scope, record.kind)
 
     ui.info(f"Removing {target_qualified} v{record.version} from {dest_root}...")
     installer.remove_paths(record.installed_paths, dest_root)

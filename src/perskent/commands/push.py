@@ -145,10 +145,7 @@ def run(
         help="Commit message (default: '<kind>s/<name> v<version>')",
     ),
 ) -> None:
-    if not config.exists():
-        ui.die("perskent is not initialized. Run `pskt init` first.")
-    cfg = config.load()
-    assert cfg is not None
+    cfg = config.load_or_die()
 
     if name is None:
         name = _prompt_workspace_package()

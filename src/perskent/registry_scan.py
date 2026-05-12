@@ -3,7 +3,7 @@
 Expected workspace layout:
     ~/.pskt/
     ├── agents/
-    │   └── <package>/manifest.toml + mirror structure of .claude/
+    │   └── <package>/manifest.toml + mirror of the install destination
     ├── skills/
     │   └── <package>/manifest.toml + ...
     └── commands/
@@ -15,7 +15,8 @@ are ignored — so the author can enrich the repo with docs without tripping
 up the CLI.
 
 Each package's contents (except `manifest.toml`) are installed via a 1:1
-mirror relative to the chosen scope's `.claude/` — implemented in `installer`.
+mirror relative to the destination dir of the chosen code-agent — see
+`installer` and `envs`.
 """
 from __future__ import annotations
 
@@ -25,7 +26,7 @@ from pathlib import Path
 from perskent import manifest as manifest_mod
 from perskent.manifest import Manifest
 
-# Folders Claude Code recognizes under `.claude/` — matches the registry layout.
+# Canonical kind folder names. Matches the registry layout.
 KIND_FOLDERS: tuple[str, ...] = ("agents", "skills", "commands")
 KIND_SINGULAR: dict[str, str] = {"agents": "agent", "skills": "skill", "commands": "command"}
 
@@ -51,8 +52,8 @@ class Package:
     def files_to_install(self) -> list[Path]:
         """List package files (paths relative to self.path), excluding manifest.toml.
 
-        These paths are also the install destinations RELATIVE to .claude/ —
-        the recursive-mirror rule defined for the project.
+        These paths are also the install destinations RELATIVE to the
+        chosen code-agent's destination dir — the recursive-mirror rule.
         """
         result: list[Path] = []
         for entry in self.path.rglob("*"):

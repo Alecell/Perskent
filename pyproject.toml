@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "perskent"
-version = "0.6.1"
-description = "CLI para gerenciar skills, agents e commands do Claude Code via repositório Git privado."
-readme = { content-type = "text/markdown", text = "perskent — gerenciador de pacotes para Claude Code via Git." }
+version = "0.7.0"
+description = "CLI para gerenciar skills, agents e commands de AI code-agents (Claude Code, opencode, Qwen Code, Codex CLI) via repositório Git privado."
+readme = { content-type = "text/markdown", text = "perskent — gerenciador de pacotes para AI code-agents via Git." }
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
   { name = "alecell", email = "alecell.dev@gmail.com" },
 ]
-keywords = ["claude", "claude-code", "skills", "agents", "cli", "package-manager"]
+keywords = ["claude", "claude-code", "opencode", "qwen", "codex", "skills", "agents", "cli", "package-manager", "ai-code-agent"]
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Environment :: Console",

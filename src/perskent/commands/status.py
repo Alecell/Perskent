@@ -15,10 +15,7 @@ from perskent.paths import workspace_dir
 
 
 def run() -> None:
-    if not config.exists():
-        ui.die("perskent is not initialized. Run `pskt init` first.")
-    cfg = config.load()
-    assert cfg is not None
+    cfg = config.load_or_die()
 
     ws = workspace_dir()
     if not ws.exists() or not git_ops.is_git_repo(ws):

@@ -7,7 +7,7 @@ from rich.table import Table
 from perskent import config
 from perskent import installed as installed_mod
 from perskent import registry_scan, ui
-from perskent.paths import claude_project_dir, claude_root_dir, workspace_dir
+from perskent.paths import dest_project_dir, dest_root_dir, workspace_dir
 
 find_app = typer.Typer(
     name="find",
@@ -53,9 +53,11 @@ def remote() -> None:
 
 @find_app.command(
     "local",
-    help="List packages installed in ~/.claude/ (root) and ./.claude/ (project).",
+    help="List packages installed in the code-agent's directory for each scope.",
 )
 def local() -> None:
+    cfg = config.load_or_die()
+
     root_pkgs = installed_mod.load(installed_mod.ROOT)
     project_pkgs = installed_mod.load(installed_mod.PROJECT)
 
@@ -75,12 +77,21 @@ def local() -> None:
     table.add_column("Version", no_wrap=True)
     table.add_column("Scope", no_wrap=True)
     table.add_column("Path", overflow="fold")
+    def _env_label(record_env: str, current_env: str) -> str:
+        if record_env == current_env:
+            return f"[muted]({record_env})[/muted]"
+        return f"[muted]({record_env})[/muted] [warn](config: {current_env})[/warn]"
+
     for pkg in sorted(root_pkgs.values(), key=lambda p: (p.kind, p.name)):
         table.add_row(
-            pkg.kind, pkg.name, pkg.version, "[info]root[/info]", str(claude_root_dir())
+            pkg.kind, pkg.name, pkg.version,
+            f"[info]root[/info] {_env_label(pkg.env, cfg.code_agent_root)}",
+            str(dest_root_dir(pkg.env, pkg.kind)),
         )
     for pkg in sorted(project_pkgs.values(), key=lambda p: (p.kind, p.name)):
         table.add_row(
-            pkg.kind, pkg.name, pkg.version, "[warn]project[/warn]", str(claude_project_dir())
+            pkg.kind, pkg.name, pkg.version,
+            f"[warn]project[/warn] {_env_label(pkg.env, cfg.code_agent_project)}",
+            str(dest_project_dir(pkg.env, pkg.kind)),
         )
     ui.console.print(table)

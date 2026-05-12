@@ -4,6 +4,7 @@ from __future__ import annotations
 import typer
 
 from perskent import __version__
+from perskent.commands import code_agent as code_agent_cmd
 from perskent.commands import destroy as destroy_cmd
 from perskent.commands import doctor as doctor_cmd
 from perskent.commands import find as find_cmd
@@ -79,7 +80,7 @@ app.command(
 
 app.command(
     "install",
-    help="Install a package into ~/.claude/ (root) or ./.claude/ (project).",
+    help="Install a package into the code-agent's directory (root or project scope).",
 )(install_cmd.run)
 
 app.command(
@@ -101,3 +102,8 @@ app.command(
     "destroy",
     help="Permanently delete a package from the registry (workspace + remote). Does not affect installed copies.",
 )(destroy_cmd.run)
+
+app.command(
+    "code-agent",
+    help="Show or set the code-agent (claude, opencode, qwen, codex) used per scope.",
+)(code_agent_cmd.run)
