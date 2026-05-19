@@ -4,6 +4,7 @@ from __future__ import annotations
 import typer
 
 from perskent import __version__
+from perskent.commands import add as add_cmd
 from perskent.commands import code_agent as code_agent_cmd
 from perskent.commands import destroy as destroy_cmd
 from perskent.commands import doctor as doctor_cmd
@@ -13,6 +14,7 @@ from perskent.commands import install as install_cmd
 from perskent.commands import push as push_cmd
 from perskent.commands import remove as remove_cmd
 from perskent.commands import search as search_cmd
+from perskent.commands import self_update as self_update_cmd
 from perskent.commands import show as show_cmd
 from perskent.commands import status as status_cmd
 from perskent.commands import sync as sync_cmd
@@ -84,6 +86,11 @@ app.command(
 )(install_cmd.run)
 
 app.command(
+    "add",
+    help="Bring an artifact already in the code-agent's directory into the workspace (reverse of install).",
+)(add_cmd.run)
+
+app.command(
     "remove",
     help="Remove an installed package.",
 )(remove_cmd.run)
@@ -107,3 +114,8 @@ app.command(
     "code-agent",
     help="Show or set the code-agent (claude, opencode, qwen, codex) used per scope.",
 )(code_agent_cmd.run)
+
+app.command(
+    "self-update",
+    help="Upgrade the perskent CLI itself (detects pipx vs pip and runs the right command).",
+)(self_update_cmd.run)

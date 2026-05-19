@@ -12,6 +12,43 @@ from perskent import config, git_ops, ui
 from perskent import installed as installed_mod
 from perskent import registry_scan
 from perskent.paths import workspace_dir
+from perskent.registry_scan import KIND_FOLDERS
+
+
+_WORKSPACE_BUCKET = "(workspace root)"
+
+
+def _path_from_status_line(line: str) -> str:
+    """Extract the file path from a `git status --porcelain` line.
+
+    Lines look like ` M agents/foo/bar.md`, `?? skills/baz/new.md`, or
+    `R  agents/old/x -> agents/new/y` for renames. Paths with special chars
+    are quoted with C-style escapes — we strip the outer quotes (the inner
+    escapes don't affect the `/`-split used to detect the package bucket).
+    """
+    path = line[3:] if len(line) > 3 else line
+    if " -> " in path:
+        path = path.split(" -> ", 1)[1]
+    if path.startswith('"') and path.endswith('"') and len(path) >= 2:
+        path = path[1:-1]
+    return path
+
+
+def _group_changes_by_package(lines: list[str]) -> dict[str, list[str]]:
+    """Bucket porcelain lines by their owning package (`<kind>s/<name>`).
+
+    Files outside any package folder fall under `(workspace root)`.
+    """
+    buckets: dict[str, list[str]] = {}
+    for line in lines:
+        path = _path_from_status_line(line)
+        parts = path.split("/", 2)
+        if len(parts) >= 2 and parts[0] in KIND_FOLDERS and parts[1]:
+            key = f"{parts[0]}/{parts[1]}"
+        else:
+            key = _WORKSPACE_BUCKET
+        buckets.setdefault(key, []).append(path)
+    return buckets
 
 
 def run() -> None:
@@ -33,9 +70,27 @@ def run() -> None:
     try:
         changes = git_ops.status_porcelain(ws)
         if changes:
-            ui.console.print(
-                f"  Local changes:  [warn]{len(changes)} file(s) modified or untracked[/warn]"
-            )
+            buckets = _group_changes_by_package(changes)
+            pkg_buckets = {k: v for k, v in buckets.items() if k != _WORKSPACE_BUCKET}
+            other_files = buckets.get(_WORKSPACE_BUCKET, [])
+            total = len(changes)
+
+            header = f"{total} file(s) in {len(pkg_buckets)} package(s)"
+            if other_files:
+                header += f" + {len(other_files)} other file(s)"
+            ui.console.print(f"  Local changes:  [warn]{header}[/warn]")
+
+            for key in sorted(pkg_buckets.keys()):
+                ui.console.print(
+                    f"                    [muted]{key}[/muted]  ({len(pkg_buckets[key])})"
+                )
+            if other_files:
+                preview = ", ".join(other_files[:3])
+                if len(other_files) > 3:
+                    preview += f", … (+{len(other_files) - 3})"
+                ui.console.print(
+                    f"                    [muted]{_WORKSPACE_BUCKET}:[/muted] {preview}"
+                )
         else:
             ui.console.print("  Local changes:  [ok]clean[/ok]")
     except git_ops.GitError:

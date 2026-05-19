@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "perskent"
-version = "0.7.0"
+version = "0.8.0"
 description = "CLI para gerenciar skills, agents e commands de AI code-agents (Claude Code, opencode, Qwen Code, Codex CLI) via repositório Git privado."
 readme = { content-type = "text/markdown", text = "perskent — gerenciador de pacotes para AI code-agents via Git." }
 requires-python = ">=3.11"

@@ -191,8 +191,13 @@ def unpushed_commits(repo: Path, branch: str = "main") -> int:
 
 
 def status_porcelain(repo: Path, path_filter: str | None = None) -> list[str]:
-    """Return lines from `git status --porcelain` (filtered to a path if given)."""
-    args = ["status", "--porcelain"]
+    """Return lines from `git status --porcelain --untracked-files=all`.
+
+    `-uall` is used so untracked directories are expanded into their files;
+    without it, git emits a single entry per untracked folder, which would
+    under-count changes in callers that want a per-file view.
+    """
+    args = ["status", "--porcelain", "--untracked-files=all"]
     if path_filter:
         args.extend(["--", path_filter])
     result = _run(args, cwd=repo)
