@@ -15,41 +15,20 @@ from __future__ import annotations
 
 import datetime as dt
 import shutil
-from pathlib import Path
 
 import typer
 
-from perskent import config, envs, git_ops, ui
+from perskent import artifacts, config, envs, git_ops, ui
 from perskent import installed as installed_mod
 from perskent import manifest as manifest_mod
 from perskent.commands.push import _generate_manifest
 from perskent.installed import InstalledPackage
-from perskent.paths import dest_project_dir, dest_root_dir, workspace_dir
+from perskent.paths import workspace_dir
 from perskent.registry_scan import KIND_FOLDERS, KIND_SINGULAR
 
 
 def _resolve_env(cfg: config.Config, scope: str) -> str:
     return cfg.code_agent_root if scope == installed_mod.ROOT else cfg.code_agent_project
-
-
-def _env_base_for(env: str, scope: str, kind: str) -> Path:
-    """Mirror of install.py's `_dest_root_for` — the dir under which the
-    `<kind_folder>/<name>` artifact lives in the user's environment."""
-    if scope == installed_mod.ROOT:
-        return dest_root_dir(env, kind)
-    return dest_project_dir(env, kind)
-
-
-def _find_source(env_base: Path, kind_folder: str, art_name: str) -> Path | None:
-    """Locate the artifact under the env-base. Returns a directory or a
-    single-file path (`.md` convention), or None if neither exists."""
-    dir_path = env_base / kind_folder / art_name
-    if dir_path.is_dir():
-        return dir_path
-    file_path = env_base / kind_folder / f"{art_name}.md"
-    if file_path.is_file():
-        return file_path
-    return None
 
 
 def _resolve_qualified(env: str, scope: str, name: str) -> tuple[str, str]:
@@ -68,8 +47,8 @@ def _resolve_qualified(env: str, scope: str, name: str) -> tuple[str, str]:
         kind = KIND_SINGULAR[kind_folder]
         if not envs.supports_kind(env, kind):
             ui.die(f"Code-agent '{env}' does not support packages of kind '{kind}'.")
-        env_base = _env_base_for(env, scope, kind)
-        if _find_source(env_base, kind_folder, art_name) is None:
+        env_base = artifacts.env_base_for(env, scope, kind)
+        if artifacts.find_source(env_base, kind_folder, art_name) is None:
             ui.die(
                 f"Artifact '{kind_folder}/{art_name}' not found under {env_base}/{kind_folder}/."
             )
@@ -80,8 +59,8 @@ def _resolve_qualified(env: str, scope: str, name: str) -> tuple[str, str]:
         kind = KIND_SINGULAR[kind_folder]
         if not envs.supports_kind(env, kind):
             continue
-        env_base = _env_base_for(env, scope, kind)
-        if _find_source(env_base, kind_folder, name) is not None:
+        env_base = artifacts.env_base_for(env, scope, kind)
+        if artifacts.find_source(env_base, kind_folder, name) is not None:
             matches.append(kind_folder)
     if not matches:
         ui.die(
@@ -106,7 +85,7 @@ def _prompt_addable(env: str, scope: str, installed_qualified: set[str]) -> str:
         kind = KIND_SINGULAR[kind_folder]
         if not envs.supports_kind(env, kind):
             continue
-        env_base = _env_base_for(env, scope, kind)
+        env_base = artifacts.env_base_for(env, scope, kind)
         kind_dir = env_base / kind_folder
         if not kind_dir.is_dir():
             continue
@@ -131,16 +110,6 @@ def _prompt_addable(env: str, scope: str, installed_qualified: set[str]) -> str:
             "Every artifact in the env-base is already registered or already in the workspace."
         )
     return ui.ask_select("Which artifact to add?", choices=candidates)
-
-
-def _files_relative_to_env_base(source: Path, env_base: Path) -> list[Path]:
-    """Files to copy, as paths relative to the env-base (matches the
-    `installed_paths` format used by install/update/remove)."""
-    if source.is_file():
-        return [source.relative_to(env_base)]
-    return sorted(
-        f.relative_to(env_base) for f in source.rglob("*") if f.is_file()
-    )
 
 
 def run(
@@ -170,12 +139,12 @@ def run(
     kind = KIND_SINGULAR[kind_folder]
     qualified = f"{kind_folder}/{art_name}"
 
-    env_base = _env_base_for(env, scope, kind)
-    source = _find_source(env_base, kind_folder, art_name)
+    env_base = artifacts.env_base_for(env, scope, kind)
+    source = artifacts.find_source(env_base, kind_folder, art_name)
     if source is None:
         ui.die(f"Source not found under {env_base}/{kind_folder}/.")
 
-    files = _files_relative_to_env_base(source, env_base)
+    files = artifacts.files_relative_to_env_base(source, env_base)
     if not files:
         ui.die(f"Source is empty: {source}")
 

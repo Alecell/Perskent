@@ -51,7 +51,7 @@ class InstalledPackage:
     kind: str          # "agent" | "skill" | "command"
     version: str
     scope: str         # "root" | "project"
-    env: str           # code-agent at install time: "claude" | "opencode" | "qwen" | "codex"
+    env: str           # code-agent at install time: "claude" | "opencode" | "qwen" | "codex" | "cursor"
     installed_at: str
     source_commit: str | None
     installed_paths: list[str]

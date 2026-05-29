@@ -4,7 +4,7 @@ CLI for managing AI code-agent packages (skills, agents, commands) via your own 
 
 You point `pskt` at your own repo (a private GitHub repo works fine), and the CLI handles installation, updates, versioning, and publishing of your packages to the chosen code-agent's directory at the chosen scope (global or per-project).
 
-**Supported code-agents:** [Claude Code](https://claude.com/claude-code), [opencode](https://opencode.ai), [Qwen Code](https://github.com/QwenLM/qwen-code), [OpenAI Codex CLI](https://github.com/openai/codex). You pick which one each scope targets at `pskt init` time — see [Code-agents](#code-agents) below.
+**Supported code-agents:** [Claude Code](https://claude.com/claude-code), [opencode](https://opencode.ai), [Qwen Code](https://github.com/QwenLM/qwen-code), [OpenAI Codex CLI](https://github.com/openai/codex), [Cursor](https://cursor.com). You pick which one each scope targets at `pskt init` time — see [Code-agents](#code-agents) below.
 
 ## Installation
 
@@ -54,7 +54,8 @@ pskt code-agent opencode root     # later: switch the root scope to a different 
 | `pskt install [<name>] [<root\|project>] [--force]` | Install a package (interactive picker if args omitted) |
 | `pskt remove [<name>] [<root\|project>]` | Uninstall a package (interactive picker if args omitted) |
 | `pskt update [<name>] [<root\|project>]` | Upgrade a package, preserving files marked in `[update].preserve` (interactive picker if args omitted) |
-| `pskt push [<name>] [-m <msg>]` | Bump + commit + push a locally-edited package (interactive picker if name omitted) |
+| `pskt add [<name>] [<root\|project>]` | Bring an artifact already in the code-agent's directory into the workspace (reverse of `install`); generates a manifest and registers it as installed |
+| `pskt push [<name>]` `[<root\|project>]` `[-m <msg>]` | Publish a package. Without a scope: a package edited directly in `~/.pskt/`. With a scope: an installation edited in place (see [Publishing edits made in place](#publishing-edits-made-in-place)) |
 | `pskt destroy <name> [-y]` | Permanently delete a package from the registry (workspace + remote). Does not affect installed copies. |
 | `pskt code-agent [<tool>] [<root\|project>]` | Show or change which code-agent each scope targets. Without args, shows the current config. |
 
@@ -62,13 +63,16 @@ For any command that accepts `<name>`: if packages with the same name exist in m
 
 ## Interactive prompts
 
-`push`, `install`, `remove`, and `update` accept their arguments interactively when omitted — arrow keys + enter:
+`push`, `install`, `remove`, `update`, and `add` accept their arguments interactively when omitted — arrow keys + enter:
 
 ```bash
-pskt push        # picker for workspace packages
-pskt install     # picker for registry packages → scope picker
-pskt remove      # scope picker → picker for packages installed in that scope
-pskt update      # scope picker → picker for packages installed in that scope
+pskt push          # picker for workspace packages (edited in ~/.pskt/)
+pskt push root     # picker for root installations with local edits to publish
+pskt push project  # picker for project installations with local edits to publish
+pskt install       # picker for registry packages → scope picker
+pskt remove        # scope picker → picker for packages installed in that scope
+pskt update        # scope picker → picker for packages installed in that scope
+pskt add           # scope picker → picker for un-registered artifacts in that scope
 ```
 
 Example output:
@@ -113,16 +117,17 @@ The two scopes can target different code-agents. `pskt find local` shows both sc
 | `opencode` | `~/.config/opencode/` | `./.opencode/` |
 | `qwen` (Qwen Code) | `~/.qwen/` | `./.qwen/` |
 | `codex` (OpenAI Codex CLI) | `~/.codex/` | `./.codex/` |
+| `cursor` (Cursor) | `~/.cursor/` | `./.cursor/` |
 
 Switch later with `pskt code-agent <tool> [root|project]`. Without arguments, `pskt code-agent` prints the current configuration.
 
 **Per-code-agent supported kinds.** perskent only orchestrates files — it does not edit the code-agent's `settings.json` / `config.toml`. Some code-agents accept a given kind only inline in their config, not as a standalone file; in those cases `pskt install` refuses the kind with a clear message:
 
-| Kind     | claude | opencode | qwen | codex                  |
-|----------|:------:|:--------:|:----:|:----------------------:|
-| `agent`    |   ✓    |    ✓     |  ✓   | ✗ (inline in `config.toml`) |
-| `skill`    |   ✓    |    ✓     |  ✓   | ✓ (installed into `~/.agents/skills/`, by Codex convention) |
-| `command`  |   ✓    |    ✓     |  ✓   | ✗ (no file-based slash commands)   |
+| Kind     | claude | opencode | qwen | codex                  | cursor |
+|----------|:------:|:--------:|:----:|:----------------------:|:------:|
+| `agent`    |   ✓    |    ✓     |  ✓   | ✗ (inline in `config.toml`) | ✓ (`.cursor/agents/`) |
+| `skill`    |   ✓    |    ✓     |  ✓   | ✓ (installed into `~/.agents/skills/`, by Codex convention) | ✓ (`.cursor/skills/`) |
+| `command`  |   ✓    |    ✓     |  ✓   | ✗ (no file-based slash commands)   | ✓ (`.cursor/commands/`) |
 
 The file content (frontmatter format, etc.) is the package author's responsibility — perskent never reads or rewrites the files it copies, so a package written for one code-agent's frontmatter conventions may not work on another without adjustments.
 
@@ -146,6 +151,23 @@ The file content (frontmatter format, etc.) is the package author's responsibili
 ```
 
 The parent folder (`agents`, `skills`, `commands`) signals the package **kind**. Each package's contents (except `manifest.toml`) are mirrored **1:1** into the code-agent's directory for the chosen scope — no renaming, no imposed layout convention. The author decides the structure inside the package.
+
+## Publishing edits made in place
+
+Packages often evolve while you _use_ them — you tweak a skill's `SKILL.md` directly inside `~/.claude/skills/...` as you discover what works. `pskt push <scope>` publishes those in-place edits without you having to copy anything back by hand:
+
+```bash
+pskt push project              # picker of project installations with local edits
+pskt push root                 # same, for the global scope
+pskt push skills/my-skill root # target a specific installation
+```
+
+It mirrors the installation back into the workspace (`~/.pskt/`), runs the normal bump → commit → push flow, and updates the install record to the freshly published version. Two safeguards:
+
+- **Files matching `[update].preserve` are never published.** User-runtime data (agent memory, notes) stays local — only the package template is pushed.
+- The picker only lists installations that actually differ from the workspace, so there's nothing to scroll past when a package is already in sync.
+
+This is the reverse direction of `pskt update` (which pulls the registry's version _down_ into an installation). See the [data-flow overview](#remote-registry-vs-local-workspace): `update` is registry → installation, `push <scope>` is installation → workspace → registry.
 
 ## Manifest
 

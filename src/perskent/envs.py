@@ -24,14 +24,19 @@ ENV_CLAUDE = "claude"
 ENV_OPENCODE = "opencode"
 ENV_QWEN = "qwen"
 ENV_CODEX = "codex"
+ENV_CURSOR = "cursor"
 
-ENVS: tuple[str, ...] = (ENV_CLAUDE, ENV_OPENCODE, ENV_QWEN, ENV_CODEX)
+ENVS: tuple[str, ...] = (ENV_CLAUDE, ENV_OPENCODE, ENV_QWEN, ENV_CODEX, ENV_CURSOR)
 
 _BASE: dict[str, dict[str, str]] = {
     ENV_CLAUDE:   {"root": ".claude",          "project": ".claude"},
     ENV_OPENCODE: {"root": ".config/opencode", "project": ".opencode"},
     ENV_QWEN:     {"root": ".qwen",            "project": ".qwen"},
     ENV_CODEX:    {"root": ".codex",           "project": ".codex"},
+    # Cursor mirrors Claude's layout: agents/, skills/, commands/ live directly
+    # under .cursor/ (project) and ~/.cursor/ (root). Its `rules/` dir holds a
+    # different concept (always-on guidelines), which perskent does not model.
+    ENV_CURSOR:   {"root": ".cursor",          "project": ".cursor"},
 }
 
 # (env, kind) → override for the destination dir. Falls back to _BASE otherwise.
@@ -44,6 +49,7 @@ SUPPORTED_KINDS: dict[str, frozenset[str]] = {
     ENV_OPENCODE: frozenset({"agent", "skill", "command"}),
     ENV_QWEN:     frozenset({"agent", "skill", "command"}),
     ENV_CODEX:    frozenset({"skill"}),
+    ENV_CURSOR:   frozenset({"agent", "skill", "command"}),
 }
 
 _BIN_NAMES: dict[str, str] = {
@@ -51,6 +57,7 @@ _BIN_NAMES: dict[str, str] = {
     ENV_OPENCODE: "opencode",
     ENV_QWEN: "qwen",
     ENV_CODEX: "codex",
+    ENV_CURSOR: "cursor",
 }
 
 

@@ -4,7 +4,7 @@ Conventions:
 - Config (config.toml, root scope's installed.toml): platformdirs user_config_dir.
 - Workspace (clone of the remote registry): ~/.pskt/ (fixed, per project decision).
 - Installations consumed by the chosen code-agent:
-  - root scope:    ~/<env-base>/    (e.g. ~/.claude/, ~/.config/opencode/, ~/.qwen/, ~/.codex/)
+  - root scope:    ~/<env-base>/    (e.g. ~/.claude/, ~/.config/opencode/, ~/.qwen/, ~/.codex/, ~/.cursor/)
   - project scope: ./<env-base>/    (relative to cwd, or to a given project_root)
 - Per-scope installed.toml records what each `pskt install` placed on disk.
 

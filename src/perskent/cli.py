@@ -112,7 +112,7 @@ app.command(
 
 app.command(
     "code-agent",
-    help="Show or set the code-agent (claude, opencode, qwen, codex) used per scope.",
+    help="Show or set the code-agent (claude, opencode, qwen, codex, cursor) used per scope.",
 )(code_agent_cmd.run)
 
 app.command(
