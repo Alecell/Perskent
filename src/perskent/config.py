@@ -17,12 +17,47 @@ class ConfigSchemaError(ValueError):
     """Raised when config.toml is from an older schema and needs reinit."""
 
 
+def _coerce_env_list(value, key: str) -> list[str]:
+    """Normalize a `[env].root`/`[env].project` value into a validated list.
+
+    Accepts a single string (pre-1.0 schema, one agent per scope) or a list of
+    strings (1.0+, several agents per scope). Order is preserved; duplicates are
+    dropped. Each entry must be a known code-agent.
+    """
+    if isinstance(value, str):
+        items = [value]
+    elif isinstance(value, (list, tuple)):
+        items = [str(v) for v in value]
+    else:
+        raise ValueError(f"invalid [env].{key}: must be a string or a list of strings.")
+
+    result: list[str] = []
+    for item in items:
+        if not envs.is_valid(item):
+            raise ValueError(
+                f"invalid [env].{key}: {item!r}. Must be one of {envs.ENVS}."
+            )
+        if item not in result:
+            result.append(item)
+    if not result:
+        raise ValueError(f"invalid [env].{key}: at least one code-agent is required.")
+    return result
+
+
 @dataclass
 class Config:
     registry_url: str
-    auth_method: str           # "ssh" | "https"
-    code_agent_root: str       # one of envs.ENVS
-    code_agent_project: str    # one of envs.ENVS
+    auth_method: str                  # "ssh" | "https"
+    code_agents_root: list[str]       # subset of envs.ENVS (≥1)
+    code_agents_project: list[str]    # subset of envs.ENVS (≥1)
+
+    def agents_for(self, scope: str) -> list[str]:
+        """Code-agents configured for `scope` ('root' | 'project')."""
+        if scope == "root":
+            return self.code_agents_root
+        if scope == "project":
+            return self.code_agents_project
+        raise ValueError(f"invalid scope: {scope!r}. Use 'root' or 'project'.")
 
     def to_dict(self) -> dict:
         return {
@@ -31,8 +66,8 @@ class Config:
                 "auth_method": self.auth_method,
             },
             "env": {
-                "root": self.code_agent_root,
-                "project": self.code_agent_project,
+                "root": self.code_agents_root,
+                "project": self.code_agents_project,
             },
         }
 
@@ -49,22 +84,11 @@ class Config:
                 "Run `pskt init --force` to reconfigure."
             )
 
-        root_env = env_section["root"]
-        project_env = env_section["project"]
-        if not envs.is_valid(root_env):
-            raise ValueError(
-                f"invalid [env].root: {root_env!r}. Must be one of {envs.ENVS}."
-            )
-        if not envs.is_valid(project_env):
-            raise ValueError(
-                f"invalid [env].project: {project_env!r}. Must be one of {envs.ENVS}."
-            )
-
         return cls(
             registry_url=registry["url"],
             auth_method=registry.get("auth_method") or "ssh",
-            code_agent_root=root_env,
-            code_agent_project=project_env,
+            code_agents_root=_coerce_env_list(env_section["root"], "root"),
+            code_agents_project=_coerce_env_list(env_section["project"], "project"),
         )
 
 

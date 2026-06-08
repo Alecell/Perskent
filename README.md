@@ -4,7 +4,7 @@ CLI for managing AI code-agent packages (skills, agents, commands) via your own 
 
 You point `pskt` at your own repo (a private GitHub repo works fine), and the CLI handles installation, updates, versioning, and publishing of your packages to the chosen code-agent's directory at the chosen scope (global or per-project).
 
-**Supported code-agents:** [Claude Code](https://claude.com/claude-code), [opencode](https://opencode.ai), [Qwen Code](https://github.com/QwenLM/qwen-code), [OpenAI Codex CLI](https://github.com/openai/codex), [Cursor](https://cursor.com). You pick which one each scope targets at `pskt init` time — see [Code-agents](#code-agents) below.
+**Supported code-agents:** [Claude Code](https://claude.com/claude-code), [opencode](https://opencode.ai), [Qwen Code](https://github.com/QwenLM/qwen-code), [OpenAI Codex CLI](https://github.com/openai/codex), [Cursor](https://cursor.com), [Zed](https://zed.dev), [Cline](https://cline.bot), [Gemini CLI](https://github.com/google-gemini/gemini-cli). Each scope can target **one or several** code-agents at once, and `pskt mirror` keeps them in sync — see [Code-agents](#code-agents) below.
 
 ## Installation
 
@@ -36,7 +36,9 @@ pskt find remote                  # list packages available in the registry
 pskt install my-agent root        # install in the global dir of the chosen code-agent
 pskt install my-skill project     # install in the project dir of the chosen code-agent
 pskt install                      # or run without args for an interactive picker
-pskt code-agent opencode root     # later: switch the root scope to a different code-agent
+pskt install my-skill project --agent all   # install into every code-agent of the scope
+pskt code-agent add opencode root           # later: add a code-agent to the root scope
+pskt mirror --scope project                 # replicate opted-in artifacts across the scope's agents
 ```
 
 ## Commands
@@ -51,13 +53,14 @@ pskt code-agent opencode root     # later: switch the root scope to a different 
 | `pskt find local` | List installed packages (root + project) |
 | `pskt show <name>` | Show details of a package |
 | `pskt search <term>` | Search by name or description |
-| `pskt install [<name>] [<root\|project>] [--force]` | Install a package (interactive picker if args omitted) |
-| `pskt remove [<name>] [<root\|project>]` | Uninstall a package (interactive picker if args omitted) |
-| `pskt update [<name>] [<root\|project>]` | Upgrade a package, preserving files marked in `[update].preserve` (interactive picker if args omitted) |
-| `pskt add [<name>] [<root\|project>]` | Bring an artifact already in the code-agent's directory into the workspace (reverse of `install`); generates a manifest and registers it as installed |
+| `pskt install [<name>] [<root\|project>] [--agent <tool>\|all] [--force]` | Install a package. `--agent` picks one of the scope's code-agents (or `all`); prompts when the scope has several |
+| `pskt remove [<name>] [<root\|project>] [--agent <tool>\|all]` | Uninstall a package from one code-agent (or `all`) |
+| `pskt update [<name>] [<root\|project>] [--agent <tool>\|all]` | Upgrade a package (one code-agent or `all`), preserving files marked in `[update].preserve` |
+| `pskt add [<name>] [<root\|project>] [--agent <tool>]` | Bring an artifact already in a code-agent's directory into the workspace (reverse of `install`); generates a manifest and registers it as installed |
 | `pskt push [<name>]` `[<root\|project>]` `[-m <msg>]` | Publish a package. Without a scope: a package edited directly in `~/.pskt/`. With a scope: an installation edited in place (see [Publishing edits made in place](#publishing-edits-made-in-place)) |
+| `pskt mirror [--scope <root\|project>] [--from <tool>] [--to <tool>] [--only <kind>s/<name>] [--strategy newest\|abort] [--dry-run]` | Replicate skills/agents/commands across the code-agents of a scope. Opt-in via `.pskt-mirror.toml` (project) / `~/.config/pskt/mirror.toml` (root), or `--only`. See [Mirroring across code-agents](#mirroring-across-code-agents) |
 | `pskt destroy <name> [-y]` | Permanently delete a package from the registry (workspace + remote). Does not affect installed copies. |
-| `pskt code-agent [<tool>] [<root\|project>]` | Show or change which code-agent each scope targets. Without args, shows the current config. |
+| `pskt code-agent` / `pskt code-agent add\|remove\|set <tool> [<root\|project>]` | Show or manage the code-agent(s) each scope targets. `add`/`remove` adjust the list; `set` replaces it; no args shows the current config |
 
 For any command that accepts `<name>`: if packages with the same name exist in multiple kinds, use the qualified name — `agents/my-thing`, `skills/my-thing`, `commands/my-thing`.
 
@@ -105,31 +108,41 @@ For `remove` and `update`, scope must be provided (either as a positional argume
 - **`root`** — installs into the chosen code-agent's global directory (e.g. `~/.claude/`, `~/.config/opencode/`), available across all projects.
 - **`project`** — installs into the chosen code-agent's project-local directory (e.g. `./.claude/`, `./.opencode/`), this project only.
 
-The two scopes can target different code-agents. `pskt find local` shows both scopes simultaneously when run from inside a project, with the code-agent of each scope labelled.
+Each scope can target **one or several** code-agents at once. `pskt find local` shows both scopes simultaneously when run from inside a project, with the code-agent of each installed copy labelled.
 
 ### Code-agents
 
-`pskt init` asks which code-agent each scope targets and persists the choice. CLIs found on `PATH` are offered first as defaults.
+`pskt init` asks which code-agent(s) each scope targets (multi-select) and persists the choice. CLIs found on `PATH` are pre-selected.
 
-| Code-agent | Root install dir | Project install dir |
-|---|---|---|
-| `claude` (Claude Code) | `~/.claude/` | `./.claude/` |
-| `opencode` | `~/.config/opencode/` | `./.opencode/` |
-| `qwen` (Qwen Code) | `~/.qwen/` | `./.qwen/` |
-| `codex` (OpenAI Codex CLI) | `~/.codex/` | `./.codex/` |
-| `cursor` (Cursor) | `~/.cursor/` | `./.cursor/` |
+| Code-agent | Root install dir | Project install dir | Kinds as files |
+|---|---|---|---|
+| `claude` (Claude Code) | `~/.claude/` | `./.claude/` | agent, skill, command |
+| `opencode` | `~/.config/opencode/` | `./.opencode/` | agent, skill, command |
+| `qwen` (Qwen Code) | `~/.qwen/` | `./.qwen/` | agent, skill, command |
+| `codex` (OpenAI Codex CLI) | `~/.codex/` | `./.codex/` | skill (into `~/.agents/skills/`, by Codex convention) |
+| `cursor` (Cursor) | `~/.cursor/` | `./.cursor/` | agent, skill, command |
+| `zed` (Zed) | `~/.agents/` | `./.agents/` | skill |
+| `cline` (Cline) | `~/.cline/` | `./.cline/` | skill |
+| `gemini` (Gemini CLI) | `~/.gemini/` | `./.gemini/` | command |
 
-Switch later with `pskt code-agent <tool> [root|project]`. Without arguments, `pskt code-agent` prints the current configuration.
+Manage the lists with `pskt code-agent add|remove|set <tool> [root|project]`. Without arguments, `pskt code-agent` prints the current configuration. When a command targets several agents (or `all`), agents that don't accept the package's kind as files are skipped with a warning.
 
-**Per-code-agent supported kinds.** perskent only orchestrates files — it does not edit the code-agent's `settings.json` / `config.toml`. Some code-agents accept a given kind only inline in their config, not as a standalone file; in those cases `pskt install` refuses the kind with a clear message:
+**Dumb replication — perskent is a package manager, not a compatibility layer.** It only orchestrates *where* each kind lives; it never reads or rewrites file content (frontmatter, format), and never edits a code-agent's `settings.json` / `config.toml`. A package's cross-agent compatibility (e.g. Claude markdown agents vs Codex TOML agents) is the **package author's** responsibility. Agents whose folder convention differs from `agents/`/`skills/`/`commands/` (e.g. Continue's `prompts/`, Windsurf/Antigravity `workflows/`) are not mapped yet.
 
-| Kind     | claude | opencode | qwen | codex                  | cursor |
-|----------|:------:|:--------:|:----:|:----------------------:|:------:|
-| `agent`    |   ✓    |    ✓     |  ✓   | ✗ (inline in `config.toml`) | ✓ (`.cursor/agents/`) |
-| `skill`    |   ✓    |    ✓     |  ✓   | ✓ (installed into `~/.agents/skills/`, by Codex convention) | ✓ (`.cursor/skills/`) |
-| `command`  |   ✓    |    ✓     |  ✓   | ✗ (no file-based slash commands)   | ✓ (`.cursor/commands/`) |
+### Mirroring across code-agents
 
-The file content (frontmatter format, etc.) is the package author's responsibility — perskent never reads or rewrites the files it copies, so a package written for one code-agent's frontmatter conventions may not work on another without adjustments.
+`pskt mirror` makes the code-agents of a scope hold the same artifacts, so a skill you refined in `.claude` also appears in `.codex`, etc. It is filesystem-to-filesystem (the registry at `~/.pskt/` is not involved) and copies **verbatim**.
+
+What participates is **opt-in**: list artifacts by kind-qualified name under `[mirror].include` in `./.pskt-mirror.toml` (project) or `~/.config/pskt/mirror.toml` (root), or pass `--only <kind>s/<name>` for a one-off.
+
+```toml
+[mirror]
+include = ["skills/foo", "commands/deploy"]
+```
+
+- **Symmetric** (no `--from`/`--to`): takes the union across the scope's agents. When the same artifact differs between agents, **newest mtime wins** (with a warning); `--strategy abort` stops without writing instead.
+- **Directional** (`--from A --to B`): `A` is authoritative and overwrites `B`, no conflict resolution. `--to B` alone means "every other agent → B".
+- `--dry-run` prints the plan and touches nothing. Replication is additive (it adds/overwrites in targets, never deletes target-only files).
 
 ### Registry layout
 

@@ -57,6 +57,18 @@ def dest_project_dir(env: str, kind: str, project_root: Path | None = None) -> P
     return (project_root or Path.cwd()) / envs.dest_relative(env, "project", kind)
 
 
-def installed_project_file(env: str, project_root: Path | None = None) -> Path:
-    """The project-scope installed.toml lives inside the env's canonical base dir."""
+def installed_project_file(project_root: Path | None = None) -> Path:
+    """The project-scope installed.toml.
+
+    Neutral, cross-agent location at the project root (a scope can now target
+    several code-agents, so the record can no longer live inside a single
+    agent's base dir). See `installed.load` for migration of the old per-env
+    location (`./<env-base>/.pskt-installed.toml`).
+    """
+    return (project_root or Path.cwd()) / ".pskt-installed.toml"
+
+
+def installed_project_file_legacy(env: str, project_root: Path | None = None) -> Path:
+    """Pre-1.0 project-scope installed.toml location, inside the env's base dir.
+    Read-only: used by `installed.load` to migrate old records forward."""
     return env_base_project_dir(env, project_root) / ".pskt-installed.toml"

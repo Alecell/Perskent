@@ -9,23 +9,27 @@ from perskent import auth, config, envs, git_ops, ui
 from perskent.paths import config_file, workspace_dir
 
 
-def _ask_code_agent(scope_label: str, detected: list[str]) -> str:
-    """Prompt for which code-agent to use in a given scope.
+def _ask_code_agents(scope_label: str, detected: list[str]) -> list[str]:
+    """Prompt for which code-agent(s) to use in a given scope (multi-select).
 
-    If exactly one is detected on PATH, it's offered first; if multiple are
-    detected, the list shows them ordered with non-detected at the bottom.
-    If none are detected, falls back to the full canonical list.
+    Detected-on-PATH agents are listed first and pre-checked; the rest follow.
+    At least one must be chosen.
     """
     if detected:
         rest = [e for e in envs.ENVS if e not in detected]
         choices = detected + rest
     else:
         choices = list(envs.ENVS)
-    label = "detected" if detected else "none detected on PATH"
-    return ui.ask_select(
-        f"Which code-agent for {scope_label} scope? ({label})",
-        choices=choices,
-    )
+    label = "detected pre-selected" if detected else "none detected on PATH"
+    while True:
+        chosen = ui.ask_checkbox(
+            f"Which code-agent(s) for {scope_label} scope? ({label}; space to toggle, enter to confirm)",
+            choices=choices,
+            default=detected,
+        )
+        if chosen:
+            return chosen
+        ui.warn("Pick at least one code-agent.")
 
 
 def run(
@@ -100,14 +104,14 @@ def run(
         ui.info(f"Code-agents detected on PATH: {', '.join(detected)}.")
     else:
         ui.info("No code-agent CLI detected on PATH — you can still pick one manually.")
-    code_agent_root = _ask_code_agent("root", detected)
-    code_agent_project = _ask_code_agent("project", detected)
+    code_agents_root = _ask_code_agents("root", detected)
+    code_agents_project = _ask_code_agents("project", detected)
 
     config.save(config.Config(
         registry_url=url,
         auth_method=method,
-        code_agent_root=code_agent_root,
-        code_agent_project=code_agent_project,
+        code_agents_root=code_agents_root,
+        code_agents_project=code_agents_project,
     ))
     ui.ok(f"Configuration saved at {config_file()}.")
 

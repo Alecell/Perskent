@@ -1,7 +1,9 @@
-"""pskt update [name] [scope].
+"""pskt update [name] [scope] [--agent <name>|all].
 
 If `scope` is omitted, prompts for `root` | `project`.
 If `name` is omitted, prompts from the packages installed in that scope.
+A package may be installed for several code-agents in one scope; `--agent`
+picks one (or `all`), otherwise the command prompts when there's more than one.
 """
 from __future__ import annotations
 
@@ -10,7 +12,7 @@ from pathlib import Path
 
 import typer
 
-from perskent import config, envs, git_ops, installer, ui
+from perskent import agentsel, config, envs, git_ops, installer, ui
 from perskent import installed as installed_mod
 from perskent import manifest as manifest_mod
 from perskent import registry_scan
@@ -27,36 +29,50 @@ def _dest_root_for(env: str, scope: str, kind: str) -> Path:
 def _prompt_installed_package(scope: str, state: dict) -> str:
     if not state:
         ui.die(f"No packages installed in {scope}.")
-    choice_map = {
-        f"{q}  v{r.version}": q
-        for q, r in sorted(state.items())
-    }
-    choice = ui.ask_select(
-        f"Which package to update in {scope}?",
-        choices=list(choice_map.keys()),
-    )
-    return choice_map[choice]
+    # Collapse the per-env records down to the kind-qualified names on offer.
+    qualifieds = sorted({r.qualified_name for r in state.values()})
+    return ui.ask_select(f"Which package to update in {scope}?", choices=qualifieds)
 
 
-def _resolve_install_record(name: str, scope: str):
-    """Returns the InstalledPackage in the given scope. Errors clearly on 0 or >1 matches."""
-    state = installed_mod.load(scope)
-
+def _resolve_records(
+    name: str, scope: str, state: dict[str, InstalledPackage], agent_opt: str | None
+) -> list[InstalledPackage]:
+    """Records (one per code-agent) matching `name` in `scope`, filtered by agent."""
     if "/" in name:
-        record = state.get(name)
-        if record is None:
-            ui.die(f"'{name}' is not installed in {scope}.")
-        return record
+        records = [r for r in state.values() if r.qualified_name == name]
+    else:
+        records = [r for r in state.values() if r.name == name]
 
-    candidates = [(q, r) for q, r in state.items() if r.name == name]
-    if not candidates:
+    if not records:
         ui.die(f"'{name}' is not installed in {scope}.")
-    if len(candidates) > 1:
+
+    # Disambiguate kinds (bare name matching agents/foo and skills/foo).
+    quals = {r.qualified_name for r in records}
+    if len(quals) > 1:
         ui.warn(f"'{name}' is ambiguous in {scope}:")
-        for q, r in candidates:
-            ui.console.print(f"  [muted]→[/muted] {q} v{r.version}")
-        ui.die("Use the qualified name, e.g. `pskt update agents/<name> <scope>`.")
-    return candidates[0][1]
+        for q in sorted(quals):
+            ui.console.print(f"  [muted]→[/muted] {q}")
+        ui.die(f"Use the qualified name, e.g. `pskt update agents/<name> {scope}`.")
+
+    if agent_opt is not None:
+        if agent_opt == agentsel.ALL:
+            return records
+        chosen = [r for r in records if r.env == agent_opt]
+        if not chosen:
+            ui.die(f"'{name}' is not installed for code-agent '{agent_opt}' in {scope}.")
+        return chosen
+
+    if len(records) == 1:
+        return records
+
+    choice_map = {f"{r.env}  v{r.version}": r for r in sorted(records, key=lambda r: r.env)}
+    choice = ui.ask_select(
+        f"'{records[0].qualified_name}' is installed for several code-agents — update which?",
+        choices=[*choice_map.keys(), agentsel.ALL],
+    )
+    if choice == agentsel.ALL:
+        return records
+    return [choice_map[choice]]
 
 
 def run(
@@ -68,6 +84,12 @@ def run(
         None,
         help="root | project (omit for an interactive prompt)",
     ),
+    agent: str = typer.Option(
+        None,
+        "--agent",
+        "-a",
+        help="Code-agent to update (or 'all'); omit to prompt when there are several.",
+    ),
 ) -> None:
     cfg = config.load_or_die()
 
@@ -76,26 +98,38 @@ def run(
     if scope not in installed_mod.SCOPES:
         ui.die(f"Invalid scope: {scope!r}. Use 'root' or 'project'.")
 
+    state = installed_mod.load(scope)
     if name is None:
-        state = installed_mod.load(scope)
         name = _prompt_installed_package(scope, state)
 
-    record = _resolve_install_record(name, scope)
+    records = _resolve_records(name, scope, state, agent)
 
-    current_env = cfg.code_agent_root if scope == installed_mod.ROOT else cfg.code_agent_project
-    if record.env != current_env:
+    updated_any = False
+    for record in records:
+        if _update_record(cfg, record, scope, state):
+            updated_any = True
+    if updated_any:
+        installed_mod.save(state, scope)
+
+
+def _update_record(
+    cfg: config.Config,
+    record: InstalledPackage,
+    scope: str,
+    state: dict[str, InstalledPackage],
+) -> bool:
+    """Update one installed copy. Mutates `state`. Returns True if it changed."""
+    if record.env not in cfg.agents_for(scope):
         ui.warn(
-            f"Package was installed for code-agent '{record.env}', but {scope} scope is "
-            f"now configured for '{current_env}'. Updating in the original location."
+            f"[{record.env}] not in the {scope} scope's configured code-agents "
+            f"({', '.join(cfg.agents_for(scope))}). Updating in place anyway."
         )
 
-    # Defensive: the kind must still be supported by record.env. (It was at
-    # install time; this would only trip if SUPPORTED_KINDS shrank in a later
-    # perskent release.)
     if not envs.supports_kind(record.env, record.kind):
         ui.die(
             f"Code-agent '{record.env}' no longer supports packages of kind "
-            f"'{record.kind}'. Run `pskt remove {record.qualified_name} {scope}` to clean up."
+            f"'{record.kind}'. Run `pskt remove {record.qualified_name} {scope} "
+            f"--agent {record.env}` to clean up."
         )
 
     dest_root = _dest_root_for(record.env, scope, record.kind)
@@ -111,14 +145,13 @@ def run(
 
     if new_version == record.version:
         ui.warn(
-            f"'{pkg.qualified_name}' is already at v{new_version} (matches registry)."
+            f"[{record.env}] '{pkg.qualified_name}' is already at v{new_version}."
         )
         if not ui.ask_confirm("Reinstall anyway?", default=False):
-            ui.info("Cancelled.")
-            return
+            return False
 
     ui.info(
-        f"Updating {pkg.qualified_name}: v{record.version} → v{new_version}..."
+        f"[{record.env}] updating {pkg.qualified_name}: v{record.version} → v{new_version}..."
     )
 
     new_files = pkg.files_to_install()
@@ -132,7 +165,7 @@ def run(
     try:
         copied = installer.copy_files(pkg, dest_root, skip=skip_in_copy, overwrite=True)
     except installer.InstallError as e:
-        ui.die(f"Copy failed: {e}")
+        ui.die(f"[{record.env}] copy failed: {e}")
 
     new_paths_set = {str(f) for f in new_files}
     orphans_to_remove: list[str] = []
@@ -150,10 +183,9 @@ def run(
 
     head = git_ops.head_commit(workspace_dir())
     now_iso = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-
     final_paths = [str(f) for f in new_files] + orphans_preserved
 
-    new_record = InstalledPackage(
+    state[record.storage_key] = InstalledPackage(
         name=pkg.name,
         kind=pkg.kind,
         version=new_version,
@@ -163,9 +195,6 @@ def run(
         source_commit=head,
         installed_paths=final_paths,
     )
-    state = installed_mod.load(scope)
-    state[pkg.qualified_name] = new_record
-    installed_mod.save(state, scope)
 
     parts = [f"{len(copied)} overwritten"]
     if skip_in_copy:
@@ -174,4 +203,5 @@ def run(
         parts.append(f"{len(orphans_to_remove)} orphan(s) removed")
     if orphans_preserved:
         parts.append(f"{len(orphans_preserved)} orphan(s) preserved")
-    ui.ok("Updated: " + ", ".join(parts) + ".")
+    ui.ok(f"[{record.env}] updated: " + ", ".join(parts) + ".")
+    return True

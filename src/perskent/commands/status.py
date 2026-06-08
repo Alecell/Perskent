@@ -139,25 +139,25 @@ def run() -> None:
     )
 
     reg_by_qualified = {p.qualified_name: p for p in pkgs}
-    outdated: list[tuple[str, str, str, str]] = []
-    orphaned: list[tuple[str, str, str]] = []
+    outdated: list[tuple[str, str, str, str, str]] = []
+    orphaned: list[tuple[str, str, str, str]] = []
 
     for inst in [*root_pkgs.values(), *project_pkgs.values()]:
         reg_pkg = reg_by_qualified.get(inst.qualified_name)
         if reg_pkg is None:
-            orphaned.append((inst.qualified_name, inst.scope, inst.version))
+            orphaned.append((inst.qualified_name, inst.scope, inst.env, inst.version))
         elif reg_pkg.manifest.version != inst.version:
             outdated.append(
-                (inst.qualified_name, inst.scope, inst.version, reg_pkg.manifest.version)
+                (inst.qualified_name, inst.scope, inst.env, inst.version, reg_pkg.manifest.version)
             )
 
     if outdated:
         ui.console.print(f"  [warn]Outdated ({len(outdated)}):[/warn]")
-        for qual, scope, inst_v, reg_v in outdated:
+        for qual, scope, env, inst_v, reg_v in outdated:
             ui.console.print(
-                f"    {qual} [muted]({scope})[/muted]  "
+                f"    {qual} [muted]({scope}/{env})[/muted]  "
                 f"[warn]v{inst_v}[/warn] → [ok]v{reg_v}[/ok]  "
-                f"[muted](run `pskt update {qual} {scope}`)[/muted]"
+                f"[muted](run `pskt update {qual} {scope} --agent {env}`)[/muted]"
             )
 
     if orphaned:
@@ -165,10 +165,10 @@ def run() -> None:
             f"  [warn]Orphaned ({len(orphaned)}):[/warn] "
             f"[muted](installed but no longer in the registry)[/muted]"
         )
-        for qual, scope, inst_v in orphaned:
+        for qual, scope, env, inst_v in orphaned:
             ui.console.print(
-                f"    {qual} [muted]({scope})[/muted] v{inst_v}  "
-                f"[muted](run `pskt remove {qual} {scope}` to clean up)[/muted]"
+                f"    {qual} [muted]({scope}/{env})[/muted] v{inst_v}  "
+                f"[muted](run `pskt remove {qual} {scope} --agent {env}` to clean up)[/muted]"
             )
 
     if not outdated and not orphaned:

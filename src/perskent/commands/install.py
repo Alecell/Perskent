@@ -10,15 +10,11 @@ from pathlib import Path
 
 import typer
 
-from perskent import config, envs, git_ops, installer, ui
+from perskent import agentsel, config, envs, git_ops, installer, ui
 from perskent import installed as installed_mod
 from perskent import registry_scan
 from perskent.installed import InstalledPackage
 from perskent.paths import dest_project_dir, dest_root_dir, workspace_dir
-
-
-def _resolve_env(cfg: config.Config, scope: str) -> str:
-    return cfg.code_agent_root if scope == installed_mod.ROOT else cfg.code_agent_project
 
 
 def _dest_root_for(env: str, scope: str, kind: str) -> Path:
@@ -46,6 +42,12 @@ def run(
     scope: str = typer.Argument(
         None,
         help="root | project (omit for an interactive prompt)",
+    ),
+    agent: str = typer.Option(
+        None,
+        "--agent",
+        "-a",
+        help="Code-agent to install into (or 'all'); omit to prompt if the scope has several.",
     ),
     force: bool = typer.Option(
         False,
@@ -81,21 +83,54 @@ def run(
     if scope not in installed_mod.SCOPES:
         ui.die(f"Invalid scope: {scope!r}. Use 'root' or 'project'.")
 
-    env = _resolve_env(cfg, scope)
-    if not envs.supports_kind(env, pkg.kind):
+    targets = agentsel.select_targets(cfg, scope, agent, verb="install into")
+
+    # Filter to agents that accept this kind as files; warn+skip the rest.
+    eligible = [e for e in targets if envs.supports_kind(e, pkg.kind)]
+    for e in targets:
+        if e not in eligible:
+            ui.warn(
+                f"Code-agent '{e}' does not accept packages of kind '{pkg.kind}' "
+                f"as standalone files — skipped."
+            )
+    if not eligible:
         ui.die(
-            f"Code-agent '{env}' does not support packages of kind '{pkg.kind}' "
-            f"as standalone files. Skipping install."
+            f"None of the targeted code-agents accept kind '{pkg.kind}' as files."
         )
-    dest_root = _dest_root_for(env, scope, pkg.kind)
 
     state = installed_mod.load(scope)
-    existing = state.get(pkg.qualified_name)
-    if existing is not None and not force:
-        ui.die(
-            f"'{pkg.qualified_name}' is already installed in {scope} (v{existing.version}). "
-            f"Use `pskt update {pkg.qualified_name} {scope}` or `--force` to reinstall from scratch."
+    installed_envs: list[str] = []
+    for env in eligible:
+        if not _install_one(pkg, scope, env, state, force):
+            continue
+        installed_envs.append(env)
+
+    if installed_envs:
+        installed_mod.save(state, scope)
+        ui.ok(
+            f"Installed {pkg.qualified_name} v{pkg.manifest.version} "
+            f"in {scope} for: {', '.join(installed_envs)}."
         )
+
+
+def _install_one(
+    pkg: registry_scan.Package,
+    scope: str,
+    env: str,
+    state: dict[str, InstalledPackage],
+    force: bool,
+) -> bool:
+    """Install `pkg` for one code-agent. Mutates `state`. Returns True on success,
+    False if it was skipped (already installed / conflict) without --force."""
+    key = installed_mod.storage_key(env, pkg.qualified_name)
+    dest_root = _dest_root_for(env, scope, pkg.kind)
+    existing = state.get(key)
+    if existing is not None and not force:
+        ui.warn(
+            f"[{env}] '{pkg.qualified_name}' is already installed (v{existing.version}). "
+            f"Use `pskt update {pkg.qualified_name} {scope} --agent {env}` or `--force`."
+        )
+        return False
 
     skip_for_force: set[Path] = set()
     if force and existing is not None:
@@ -104,25 +139,22 @@ def run(
     conflicts = installer.detect_conflicts(pkg, dest_root, skip=skip_for_force)
     if conflicts and not force:
         ui.error(
-            f"Install aborted: {len(conflicts)} destination file(s) already exist at {dest_root}:"
+            f"[{env}] aborted: {len(conflicts)} destination file(s) already exist at {dest_root}:"
         )
         for c in conflicts:
             ui.console.print(f"  [err]✗[/err] {c.absolute}")
         ui.info("Use --force to overwrite, or remove them manually.")
-        raise typer.Exit(1)
+        return False
 
-    ui.info(
-        f"Installing {pkg.qualified_name} v{pkg.manifest.version} into {dest_root}..."
-    )
+    ui.info(f"[{env}] installing into {dest_root}...")
     try:
         copied = installer.copy_files(pkg, dest_root, overwrite=force)
     except installer.InstallError as e:
-        ui.die(f"Copy failed: {e}")
+        ui.die(f"[{env}] copy failed: {e}")
 
     head = git_ops.head_commit(workspace_dir())
     now_iso = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-    record = InstalledPackage(
+    state[key] = InstalledPackage(
         name=pkg.name,
         kind=pkg.kind,
         version=pkg.manifest.version,
@@ -132,7 +164,4 @@ def run(
         source_commit=head,
         installed_paths=[str(p) for p in copied],
     )
-    state[pkg.qualified_name] = record
-    installed_mod.save(state, scope)
-
-    ui.ok(f"Installed: {len(copied)} file(s) into {dest_root}.")
+    return True

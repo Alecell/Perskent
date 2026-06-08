@@ -11,6 +11,7 @@ from perskent.commands import doctor as doctor_cmd
 from perskent.commands import find as find_cmd
 from perskent.commands import init as init_cmd
 from perskent.commands import install as install_cmd
+from perskent.commands import mirror as mirror_cmd
 from perskent.commands import push as push_cmd
 from perskent.commands import remove as remove_cmd
 from perskent.commands import search as search_cmd
@@ -111,9 +112,11 @@ app.command(
 )(destroy_cmd.run)
 
 app.command(
-    "code-agent",
-    help="Show or set the code-agent (claude, opencode, qwen, codex, cursor) used per scope.",
-)(code_agent_cmd.run)
+    "mirror",
+    help="Replicate skills/agents/commands across the code-agents of a scope (opt-in via .pskt-mirror.toml).",
+)(mirror_cmd.run)
+
+app.add_typer(code_agent_cmd.code_agent_app)
 
 app.command(
     "self-update",

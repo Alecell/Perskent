@@ -71,3 +71,15 @@ def ask_confirm(prompt: str, default: bool = False) -> bool:
     if answer is None:
         die("Cancelled.")
     return answer
+
+
+def ask_checkbox(
+    prompt: str, choices: Sequence[str], default: Sequence[str] | None = None
+) -> list[str]:
+    """Multi-select prompt. Returns the chosen items (possibly empty)."""
+    checked = set(default or ())
+    qchoices = [questionary.Choice(c, checked=c in checked) for c in choices]
+    answer = questionary.checkbox(prompt, choices=qchoices).ask()
+    if answer is None:
+        die("Cancelled.")
+    return list(answer)

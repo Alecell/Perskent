@@ -345,7 +345,7 @@ def _build_scope_entries(scope: str) -> tuple[dict, list[dict]]:
     state = installed_mod.load(scope)
     ws = workspace_dir()
     entries: list[dict] = []
-    for qualified, rec in sorted(state.items()):
+    for skey, rec in sorted(state.items()):
         if not envs.supports_kind(rec.env, rec.kind):
             continue
         kind_folder = _KIND_FOLDER.get(rec.kind)
@@ -359,7 +359,8 @@ def _build_scope_entries(scope: str) -> tuple[dict, list[dict]]:
         preserve = _load_preserve(ws_pkg_dir)
         entries.append(
             {
-                "qualified": qualified,
+                "storage_key": skey,
+                "qualified": rec.qualified_name,
                 "record": rec,
                 "env_base": env_base,
                 "source": source,
@@ -373,20 +374,33 @@ def _build_scope_entries(scope: str) -> tuple[dict, list[dict]]:
 
 def _resolve_scope_entry(name: str, scope: str, entries: list[dict]) -> dict:
     if "/" in name:
-        for e in entries:
-            if e["qualified"] == name:
-                return e
-        ui.die(f"'{name}' is not installed in {scope} (or its files are missing).")
+        matches = [e for e in entries if e["qualified"] == name]
+    else:
+        matches = [e for e in entries if e["record"].name == name]
 
-    matches = [e for e in entries if e["record"].name == name]
     if not matches:
         ui.die(f"'{name}' is not installed in {scope} (or its files are missing).")
-    if len(matches) > 1:
+
+    quals = {e["qualified"] for e in matches}
+    if len(quals) > 1:
         ui.warn(f"'{name}' is ambiguous in {scope}:")
-        for e in matches:
-            ui.console.print(f"  [muted]→[/muted] {e['qualified']} v{e['record'].version}")
+        for q in sorted(quals):
+            ui.console.print(f"  [muted]→[/muted] {q}")
         ui.die(f"Use the qualified name, e.g. `pskt push skills/<name> {scope}`.")
-    return matches[0]
+
+    if len(matches) == 1:
+        return matches[0]
+
+    # Same package installed for several code-agents — publish from which one.
+    choice_map = {
+        f"{e['record'].env}  v{e['record'].version}": e
+        for e in sorted(matches, key=lambda e: e["record"].env)
+    }
+    choice = ui.ask_select(
+        f"'{matches[0]['qualified']}' is installed for several code-agents — publish from which?",
+        choices=list(choice_map.keys()),
+    )
+    return choice_map[choice]
 
 
 def _run_scoped(
@@ -439,7 +453,7 @@ def _run_scoped(
     head = git_ops.head_commit(workspace_dir())
     now_iso = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     files = artifacts.files_relative_to_env_base(entry["source"], env_base)
-    state[entry["qualified"]] = InstalledPackage(
+    state[entry["storage_key"]] = InstalledPackage(
         name=rec.name,
         kind=rec.kind,
         version=version,

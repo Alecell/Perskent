@@ -25,8 +25,20 @@ ENV_OPENCODE = "opencode"
 ENV_QWEN = "qwen"
 ENV_CODEX = "codex"
 ENV_CURSOR = "cursor"
+ENV_ZED = "zed"
+ENV_CLINE = "cline"
+ENV_GEMINI = "gemini"
 
-ENVS: tuple[str, ...] = (ENV_CLAUDE, ENV_OPENCODE, ENV_QWEN, ENV_CODEX, ENV_CURSOR)
+ENVS: tuple[str, ...] = (
+    ENV_CLAUDE,
+    ENV_OPENCODE,
+    ENV_QWEN,
+    ENV_CODEX,
+    ENV_CURSOR,
+    ENV_ZED,
+    ENV_CLINE,
+    ENV_GEMINI,
+)
 
 _BASE: dict[str, dict[str, str]] = {
     ENV_CLAUDE:   {"root": ".claude",          "project": ".claude"},
@@ -37,6 +49,19 @@ _BASE: dict[str, dict[str, str]] = {
     # under .cursor/ (project) and ~/.cursor/ (root). Its `rules/` dir holds a
     # different concept (always-on guidelines), which perskent does not model.
     ENV_CURSOR:   {"root": ".cursor",          "project": ".cursor"},
+    # Zed reads skills from ~/.agents/skills (root) and <project>/.agents/skills
+    # — the cross-tool `.agents/skills/SKILL.md` convention it shares with Codex.
+    # Only skills are file-based; agent profiles live in settings.json (inline).
+    ENV_ZED:      {"root": ".agents",          "project": ".agents"},
+    # Cline reads skills from ~/.cline/skills and <project>/.cline/skills.
+    # Its rules/workflows use other folder names (.clinerules/) that don't map
+    # to perskent's agents/skills/commands layout, so only skills are modelled.
+    ENV_CLINE:    {"root": ".cline",           "project": ".cline"},
+    # Gemini CLI reads custom commands from ~/.gemini/commands and
+    # <project>/.gemini/commands — same `commands/` folder name perskent uses.
+    # (Gemini command files are TOML; making a package cross-compatible is the
+    # package author's job — perskent replicates verbatim.)
+    ENV_GEMINI:   {"root": ".gemini",          "project": ".gemini"},
 }
 
 # (env, kind) → override for the destination dir. Falls back to _BASE otherwise.
@@ -50,6 +75,9 @@ SUPPORTED_KINDS: dict[str, frozenset[str]] = {
     ENV_QWEN:     frozenset({"agent", "skill", "command"}),
     ENV_CODEX:    frozenset({"skill"}),
     ENV_CURSOR:   frozenset({"agent", "skill", "command"}),
+    ENV_ZED:      frozenset({"skill"}),
+    ENV_CLINE:    frozenset({"skill"}),
+    ENV_GEMINI:   frozenset({"command"}),
 }
 
 _BIN_NAMES: dict[str, str] = {
@@ -58,6 +86,9 @@ _BIN_NAMES: dict[str, str] = {
     ENV_QWEN: "qwen",
     ENV_CODEX: "codex",
     ENV_CURSOR: "cursor",
+    ENV_ZED: "zed",
+    ENV_CLINE: "cline",
+    ENV_GEMINI: "gemini",
 }
 
 

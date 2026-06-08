@@ -18,17 +18,13 @@ import shutil
 
 import typer
 
-from perskent import artifacts, config, envs, git_ops, ui
+from perskent import agentsel, artifacts, config, envs, git_ops, ui
 from perskent import installed as installed_mod
 from perskent import manifest as manifest_mod
 from perskent.commands.push import _generate_manifest
 from perskent.installed import InstalledPackage
 from perskent.paths import workspace_dir
 from perskent.registry_scan import KIND_FOLDERS, KIND_SINGULAR
-
-
-def _resolve_env(cfg: config.Config, scope: str) -> str:
-    return cfg.code_agent_root if scope == installed_mod.ROOT else cfg.code_agent_project
 
 
 def _resolve_qualified(env: str, scope: str, name: str) -> tuple[str, str]:
@@ -121,6 +117,12 @@ def run(
         None,
         help="root | project (omit for an interactive prompt)",
     ),
+    agent: str = typer.Option(
+        None,
+        "--agent",
+        "-a",
+        help="Code-agent to import the artifact from; omit to prompt when the scope has several.",
+    ),
 ) -> None:
     cfg = config.load_or_die()
 
@@ -129,11 +131,14 @@ def run(
     if scope not in installed_mod.SCOPES:
         ui.die(f"Invalid scope: {scope!r}. Use 'root' or 'project'.")
 
-    env = _resolve_env(cfg, scope)
+    env = agentsel.select_targets(cfg, scope, agent, verb="import from", allow_all=False)[0]
     state = installed_mod.load(scope)
 
+    # Names already registered for this env (so we don't offer to re-add them).
+    installed_qualified = {r.qualified_name for r in state.values() if r.env == env}
+
     if name is None:
-        name = _prompt_addable(env, scope, set(state.keys()))
+        name = _prompt_addable(env, scope, installed_qualified)
 
     kind_folder, art_name = _resolve_qualified(env, scope, name)
     kind = KIND_SINGULAR[kind_folder]
@@ -155,9 +160,10 @@ def run(
             f"'{qualified}' already exists in the workspace at {dest}. "
             "Use `pskt push` if you want to publish local changes."
         )
-    if qualified in state:
+    key = installed_mod.storage_key(env, qualified)
+    if key in state:
         ui.die(
-            f"'{qualified}' is already registered as installed in {scope}. "
+            f"'{qualified}' is already registered as installed for '{env}' in {scope}. "
             "Use `pskt push` to publish, or `pskt remove` first if you want to re-add."
         )
 
@@ -194,7 +200,7 @@ def run(
         source_commit=head,
         installed_paths=[str(p) for p in files],
     )
-    state[qualified] = record
+    state[key] = record
     installed_mod.save(state, scope)
 
     ui.ok(

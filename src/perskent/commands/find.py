@@ -77,21 +77,21 @@ def local() -> None:
     table.add_column("Version", no_wrap=True)
     table.add_column("Scope", no_wrap=True)
     table.add_column("Path", overflow="fold")
-    def _env_label(record_env: str, current_env: str) -> str:
-        if record_env == current_env:
+    def _env_label(record_env: str, configured: list[str]) -> str:
+        if record_env in configured:
             return f"[muted]({record_env})[/muted]"
-        return f"[muted]({record_env})[/muted] [warn](config: {current_env})[/warn]"
+        return f"[muted]({record_env})[/muted] [warn](not in config)[/warn]"
 
-    for pkg in sorted(root_pkgs.values(), key=lambda p: (p.kind, p.name)):
+    for pkg in sorted(root_pkgs.values(), key=lambda p: (p.env, p.kind, p.name)):
         table.add_row(
             pkg.kind, pkg.name, pkg.version,
-            f"[info]root[/info] {_env_label(pkg.env, cfg.code_agent_root)}",
+            f"[info]root[/info] {_env_label(pkg.env, cfg.code_agents_root)}",
             str(dest_root_dir(pkg.env, pkg.kind)),
         )
-    for pkg in sorted(project_pkgs.values(), key=lambda p: (p.kind, p.name)):
+    for pkg in sorted(project_pkgs.values(), key=lambda p: (p.env, p.kind, p.name)):
         table.add_row(
             pkg.kind, pkg.name, pkg.version,
-            f"[warn]project[/warn] {_env_label(pkg.env, cfg.code_agent_project)}",
+            f"[warn]project[/warn] {_env_label(pkg.env, cfg.code_agents_project)}",
             str(dest_project_dir(pkg.env, pkg.kind)),
         )
     ui.console.print(table)
