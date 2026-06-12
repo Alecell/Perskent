@@ -25,12 +25,11 @@ from __future__ import annotations
 
 import datetime as dt
 import re
-import shutil
 from pathlib import Path
 
 import typer
 
-from perskent import artifacts, auth, config, envs, git_ops, registry_scan, ui
+from perskent import artifacts, auth, config, envs, fsutil, git_ops, registry_scan, ui
 from perskent import installed as installed_mod
 from perskent import manifest as manifest_mod
 from perskent.installed import InstalledPackage
@@ -335,7 +334,7 @@ def _sync_to_workspace(
         src = env_base / rel
         tgt = ws_pkg_dir / rel
         tgt.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, tgt)
+        fsutil.safe_copy(src, tgt)
 
 
 def _build_scope_entries(scope: str) -> tuple[dict, list[dict]]:

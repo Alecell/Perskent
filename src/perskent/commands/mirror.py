@@ -25,13 +25,12 @@ when any conflict is found. In `--from` mode the source is always authoritative.
 """
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
 import typer
 
-from perskent import config, envs, mirror_config, ui
+from perskent import config, envs, fsutil, mirror_config, ui
 from perskent import installed as installed_mod
 from perskent.paths import dest_project_dir, dest_root_dir
 from perskent.registry_scan import KIND_FOLDERS, KIND_SINGULAR
@@ -83,7 +82,7 @@ def _replicate(winner: _Copy, target_env: str, scope: str, kind: str) -> None:
         src = winner.env_base / rel
         tgt = target_base / rel
         tgt.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, tgt)
+        fsutil.safe_copy(src, tgt)
 
 
 def run(

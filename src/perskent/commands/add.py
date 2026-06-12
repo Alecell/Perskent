@@ -18,7 +18,7 @@ import shutil
 
 import typer
 
-from perskent import agentsel, artifacts, config, envs, git_ops, ui
+from perskent import agentsel, artifacts, config, envs, fsutil, git_ops, ui
 from perskent import installed as installed_mod
 from perskent import manifest as manifest_mod
 from perskent.commands.push import _generate_manifest
@@ -174,7 +174,7 @@ def run(
             src = env_base / relative
             tgt = dest / relative
             tgt.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(src, tgt)
+            fsutil.safe_copy(src, tgt)
     except OSError as e:
         shutil.rmtree(dest, ignore_errors=True)
         ui.die(f"Copy failed: {e}")

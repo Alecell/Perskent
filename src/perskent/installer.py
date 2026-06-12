@@ -16,6 +16,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
+from perskent import fsutil
 from perskent.registry_scan import Package
 
 
@@ -80,7 +81,7 @@ def copy_files(
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists() and not overwrite:
             raise InstallError(f"existing path blocking copy: {target}")
-        shutil.copy2(src, target)
+        fsutil.safe_copy(src, target)
         installed.append(relative)
     return installed
 
