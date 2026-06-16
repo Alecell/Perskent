@@ -114,24 +114,24 @@ Each scope can target **one or several** code-agents at once. `pskt find local` 
 
 `pskt init` asks which code-agent(s) each scope targets (multi-select) and persists the choice. CLIs found on `PATH` are pre-selected.
 
-| Code-agent | Root install dir | Project install dir | Kinds as files |
+| Code-agent | Root install dir | Project install dir | Kinds (format) |
 |---|---|---|---|
-| `claude` (Claude Code) | `~/.claude/` | `./.claude/` | agent, skill, command |
-| `opencode` | `~/.config/opencode/` | `./.opencode/` | agent, skill, command |
-| `qwen` (Qwen Code) | `~/.qwen/` | `./.qwen/` | agent, skill, command |
-| `codex` (OpenAI Codex CLI) | `~/.codex/` | `./.codex/` | skill (into `~/.codex/skills/`, where Codex reads them) |
-| `cursor` (Cursor) | `~/.cursor/` | `./.cursor/` | agent, skill, command |
+| `claude` (Claude Code) | `~/.claude/` | `./.claude/` | agent (.md), skill (SKILL.md), command (.md) |
+| `opencode` | `~/.config/opencode/` | `./.opencode/` | agent (.md +`mode`), skill, command (.md) |
+| `qwen` (Qwen Code) | `~/.qwen/` | `./.qwen/` | agent (.md), skill, command (.md) |
+| `codex` (OpenAI Codex CLI) | `~/.codex/` | `./.codex/` | skill (`~/.codex/skills/`), **agent (.toml)** |
+| `cursor` (Cursor) | `~/.cursor/` | `./.cursor/` | agent (.md), skill |
 | `zed` (Zed) | `~/.agents/` | `./.agents/` | skill |
 | `cline` (Cline) | `~/.cline/` | `./.cline/` | skill |
-| `gemini` (Gemini CLI) | `~/.gemini/` | `./.gemini/` | command |
+| `gemini` (Gemini CLI) | `~/.gemini/` | `./.gemini/` | command (.toml) |
 
-Manage the lists with `pskt code-agent add|remove|set <tool> [root|project]`. Without arguments, `pskt code-agent` prints the current configuration. When a command targets several agents (or `all`), agents that don't accept the package's kind as files are skipped with a warning.
+Manage the lists with `pskt code-agent add|remove|set <tool> [root|project]`. Without arguments, `pskt code-agent` prints the current configuration. When a command targets several agents (or `all`), agents that have no concept of the package's kind (e.g. a command for Zed) are skipped with a warning.
 
-**Dumb replication — perskent is a package manager, not a compatibility layer.** It only orchestrates *where* each kind lives; it never reads or rewrites file content (frontmatter, format), and never edits a code-agent's `settings.json` / `config.toml`. A package's cross-agent compatibility (e.g. Claude markdown agents vs Codex TOML agents) is the **package author's** responsibility. Agents whose folder convention differs from `agents/`/`skills/`/`commands/` (e.g. Continue's `prompts/`, Windsurf/Antigravity `workflows/`) are not mapped yet.
+**Format conversion.** perskent replicates through a single canonical form (Claude markdown) and converts on the way in/out, so the same artifact works natively in each code-agent: a Claude markdown agent becomes a Codex `agents/<name>.toml`, a command becomes a Gemini `commands/<name>.toml`, and a frontmatter-less skill gains the `name`/`description` it needs to be discovered. Conversion is **best-effort and warns** when a field has no clean target (e.g. `mode` defaulted for opencode, `tools` dropped for Codex) or when a single-file target (Codex agent, Gemini command) cannot carry an artifact's supporting files. Author-written frontmatter is never overwritten, and conversions are deterministic so re-runs are no-ops. Pairs with no real concept in a tool (Zed/Cline agents & commands, Codex commands → use skills, Cursor commands → `.mdc` rules are a different concept) are skipped rather than written as broken files.
 
 ### Mirroring across code-agents
 
-`pskt mirror` makes the code-agents of a scope hold the same artifacts, so a skill you refined in `.claude` also appears in `.codex`, etc. It is filesystem-to-filesystem (the registry at `~/.pskt/` is not involved) and copies **verbatim**.
+`pskt mirror` makes the code-agents of a scope hold the same artifacts, so a skill you refined in `.claude` also appears in `.codex`, etc. It is filesystem-to-filesystem (the registry at `~/.pskt/` is not involved) and converts each artifact into the target's format (see **Format conversion** above; comparisons use the canonical form, so a `.md` agent and its `.toml` twin are treated as equal, not conflicting).
 
 What participates is **opt-in**: list artifacts by kind-qualified name under `[mirror].include` in `./.pskt-mirror.toml` (project) or `~/.config/pskt/mirror.toml` (root), or pass `--only <kind>s/<name>` for a one-off.
 

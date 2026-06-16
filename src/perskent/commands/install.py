@@ -136,7 +136,7 @@ def _install_one(
     if force and existing is not None:
         skip_for_force = {Path(p) for p in existing.installed_paths}
 
-    conflicts = installer.detect_conflicts(pkg, dest_root, skip=skip_for_force)
+    conflicts = installer.detect_conflicts(pkg, dest_root, env=env, skip=skip_for_force)
     if conflicts and not force:
         ui.error(
             f"[{env}] aborted: {len(conflicts)} destination file(s) already exist at {dest_root}:"
@@ -148,9 +148,11 @@ def _install_one(
 
     ui.info(f"[{env}] installing into {dest_root}...")
     try:
-        copied = installer.copy_files(pkg, dest_root, overwrite=force)
+        copied, warnings = installer.copy_files(pkg, dest_root, env=env, overwrite=force)
     except installer.InstallError as e:
         ui.die(f"[{env}] copy failed: {e}")
+    for w in warnings:
+        ui.warn(f"[{env}] {w}")
 
     head = git_ops.head_commit(workspace_dir())
     now_iso = dt.datetime.now(dt.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")

@@ -20,22 +20,29 @@ def _skill(proj: Path, env: str, content: str, mtime: float | None = None) -> Pa
     return f
 
 
+# Frontmatter'd content so these mechanics tests stay verbatim (a skill that
+# already has frontmatter is copied as-is; injection is covered separately).
+_FM_NEW = "---\nname: foo\ndescription: d\n---\nNEW"
+_FM_OLD = "---\nname: foo\ndescription: d\n---\nOLD"
+_FM_HELLO = "---\nname: foo\ndescription: d\n---\nhello"
+
+
 def test_symmetric_union_copies_to_missing_agent(isolated):
     # Only claude has the skill; cursor should receive it.
-    _skill(isolated.proj, "claude", "hello")
+    _skill(isolated.proj, "claude", _FM_HELLO)
     res = runner.invoke(app, ["mirror", "--scope", "project", "--only", "skills/foo"])
     assert res.exit_code == 0, res.output
     cursor_file = isolated.proj / ".cursor" / "skills" / "foo" / "SKILL.md"
-    assert cursor_file.read_text() == "hello"
+    assert cursor_file.read_text() == _FM_HELLO
 
 
 def test_conflict_newest_wins(isolated):
-    _skill(isolated.proj, "claude", "NEW", mtime=2_000_000_000)
-    _skill(isolated.proj, "cursor", "OLD", mtime=1_000_000_000)
+    _skill(isolated.proj, "claude", _FM_NEW, mtime=2_000_000_000)
+    _skill(isolated.proj, "cursor", _FM_OLD, mtime=1_000_000_000)
     res = runner.invoke(app, ["mirror", "--scope", "project", "--only", "skills/foo"])
     assert res.exit_code == 0, res.output
     cursor_file = isolated.proj / ".cursor" / "skills" / "foo" / "SKILL.md"
-    assert cursor_file.read_text() == "NEW"
+    assert cursor_file.read_text() == _FM_NEW
     assert "conflict" in res.output.lower()
 
 
@@ -112,6 +119,42 @@ def test_mirror_into_codex_is_idempotent(isolated):
     _enable_codex_project()
     _skill(isolated.proj, "claude", "> **Role:** PO\n\nbody\n")
     args = ["mirror", "--scope", "project", "--only", "skills/foo", "--from", "claude", "--to", "codex"]
+    assert runner.invoke(app, args).exit_code == 0
+    res2 = runner.invoke(app, args)
+    assert res2.exit_code == 0, res2.output
+    assert "nothing to mirror" in res2.output.lower()
+
+
+def _agent_md(proj: Path, env: str, name: str, content: str) -> Path:
+    f = proj / f".{env}" / "agents" / f"{name}.md"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(content, encoding="utf-8")
+    return f
+
+
+def test_mirror_agent_claude_to_codex_becomes_toml(isolated):
+    import tomllib
+    _enable_codex_project()
+    _agent_md(isolated.proj, "claude", "foo",
+              "---\nname: foo\ndescription: An agent.\nmodel: sonnet\n---\nBe an agent.\n")
+    res = runner.invoke(
+        app, ["mirror", "--scope", "project", "--only", "agents/foo", "--from", "claude", "--to", "codex"]
+    )
+    assert res.exit_code == 0, res.output
+    toml_file = isolated.proj / ".codex" / "agents" / "foo.toml"
+    assert toml_file.exists()
+    data = tomllib.loads(toml_file.read_text())
+    assert data["name"] == "foo"
+    assert data["developer_instructions"].strip() == "Be an agent."
+    # source .claude/agents/foo.md still markdown
+    assert (isolated.proj / ".claude" / "agents" / "foo.md").read_text().startswith("---")
+
+
+def test_mirror_agent_cross_format_is_idempotent(isolated):
+    _enable_codex_project()
+    _agent_md(isolated.proj, "claude", "foo",
+              "---\nname: foo\ndescription: An agent.\n---\nBody.\n")
+    args = ["mirror", "--scope", "project", "--only", "agents/foo", "--from", "claude", "--to", "codex"]
     assert runner.invoke(app, args).exit_code == 0
     res2 = runner.invoke(app, args)
     assert res2.exit_code == 0, res2.output

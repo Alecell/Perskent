@@ -12,11 +12,10 @@ Design (decided in Phase 3):
 """
 from __future__ import annotations
 
-import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from perskent import fsutil
+from perskent import converters
 from perskent.registry_scan import Package
 
 
@@ -33,29 +32,35 @@ class Conflict:
         return str(self.absolute)
 
 
+def plan_install(pkg: Package, env: str) -> converters.ConvertResult:
+    """Project a registry package (canonical Claude-markdown layout) into the
+    file-set `env` should physically hold, applying any format conversion."""
+    canonical = {str(rel): (pkg.path / rel).read_bytes() for rel in pkg.files_to_install()}
+    art = converters.build_artifact(pkg.kind, pkg.name, canonical)
+    return converters.from_canonical(env, art)
+
+
 def detect_conflicts(
     pkg: Package,
     dest_root: Path,
     *,
+    env: str,
     skip: set[Path] | None = None,
 ) -> list[Conflict]:
-    """List conflicts before installing.
+    """List conflicts before installing, on the env's target file-set.
 
-    Conflict = destination FILE from the package already exists (any content).
-    Container folders existing is not a conflict.
-
-    `skip` (relative paths): paths that do NOT count as conflicts even if
-    they already exist (e.g. `--force` reinstall replacing paths previously
-    owned by the same package).
+    Conflict = destination FILE already exists. `skip` (relative target paths)
+    do not count (e.g. `--force` reinstall of paths the package already owns).
     """
     skip_set = skip or set()
     conflicts: list[Conflict] = []
-    for relative in pkg.files_to_install():
-        if relative in skip_set:
+    for relative in plan_install(pkg, env).files:
+        rel = Path(relative)
+        if rel in skip_set:
             continue
-        target = dest_root / relative
+        target = dest_root / rel
         if target.exists() and target.is_file():
-            conflicts.append(Conflict(relative=relative, absolute=target))
+            conflicts.append(Conflict(relative=rel, absolute=target))
     return conflicts
 
 
@@ -63,27 +68,30 @@ def copy_files(
     pkg: Package,
     dest_root: Path,
     *,
+    env: str,
     skip: set[Path] | None = None,
     overwrite: bool = False,
-) -> list[Path]:
-    """Copy package files to `dest_root`. Returns relative paths that were copied.
+) -> tuple[list[Path], list[str]]:
+    """Write the env's converted file-set to `dest_root`.
 
-    `skip`: paths to NOT copy (preserve on update).
+    Returns (relative paths written, conversion warnings).
+    `skip`: target paths to NOT write (preserve on update).
     `overwrite`: if True, overwrite existing files; if False, fail on existing.
     """
     skip_set = skip or set()
+    result = plan_install(pkg, env)
     installed: list[Path] = []
-    for relative in pkg.files_to_install():
-        if relative in skip_set:
+    for relative, data in result.files.items():
+        rel = Path(relative)
+        if rel in skip_set:
             continue
-        src = pkg.path / relative
-        target = dest_root / relative
+        target = dest_root / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         if target.exists() and not overwrite:
             raise InstallError(f"existing path blocking copy: {target}")
-        fsutil.safe_copy(src, target)
-        installed.append(relative)
-    return installed
+        target.write_bytes(data)
+        installed.append(rel)
+    return installed, result.warnings
 
 
 def remove_paths(

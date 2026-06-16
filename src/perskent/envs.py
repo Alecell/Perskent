@@ -71,12 +71,17 @@ _BASE: dict[str, dict[str, str]] = {
 # `~/.codex/skills/` — the env base — so the override was dropped.)
 _KIND_OVERRIDE: dict[tuple[str, str], dict[str, str]] = {}
 
+# What each env offers as files perskent can place. A converter (see
+# `converters/`) adapts the format on the way in/out. Pairs left out have no
+# real concept in that env (zed/cline have only skills; gemini only commands;
+# codex commands are deprecated prompts → use skills; cursor commands are
+# `.mdc` rules, a different concept).
 SUPPORTED_KINDS: dict[str, frozenset[str]] = {
     ENV_CLAUDE:   frozenset({"agent", "skill", "command"}),
     ENV_OPENCODE: frozenset({"agent", "skill", "command"}),
     ENV_QWEN:     frozenset({"agent", "skill", "command"}),
-    ENV_CODEX:    frozenset({"skill"}),
-    ENV_CURSOR:   frozenset({"agent", "skill", "command"}),
+    ENV_CODEX:    frozenset({"skill", "agent"}),
+    ENV_CURSOR:   frozenset({"agent", "skill"}),
     ENV_ZED:      frozenset({"skill"}),
     ENV_CLINE:    frozenset({"skill"}),
     ENV_GEMINI:   frozenset({"command"}),

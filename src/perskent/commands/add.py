@@ -18,7 +18,7 @@ import shutil
 
 import typer
 
-from perskent import agentsel, artifacts, config, envs, fsutil, git_ops, ui
+from perskent import agentsel, artifacts, config, converters, envs, git_ops, ui
 from perskent import installed as installed_mod
 from perskent import manifest as manifest_mod
 from perskent.commands.push import _generate_manifest
@@ -44,7 +44,7 @@ def _resolve_qualified(env: str, scope: str, name: str) -> tuple[str, str]:
         if not envs.supports_kind(env, kind):
             ui.die(f"Code-agent '{env}' does not support packages of kind '{kind}'.")
         env_base = artifacts.env_base_for(env, scope, kind)
-        if artifacts.find_source(env_base, kind_folder, art_name) is None:
+        if artifacts.find_source(env_base, env, kind, art_name) is None:
             ui.die(
                 f"Artifact '{kind_folder}/{art_name}' not found under {env_base}/{kind_folder}/."
             )
@@ -56,7 +56,7 @@ def _resolve_qualified(env: str, scope: str, name: str) -> tuple[str, str]:
         if not envs.supports_kind(env, kind):
             continue
         env_base = artifacts.env_base_for(env, scope, kind)
-        if artifacts.find_source(env_base, kind_folder, name) is not None:
+        if artifacts.find_source(env_base, env, kind, name) is not None:
             matches.append(kind_folder)
     if not matches:
         ui.die(
@@ -90,7 +90,7 @@ def _prompt_addable(env: str, scope: str, installed_qualified: set[str]) -> str:
                 continue
             if entry.is_dir():
                 art_name = entry.name
-            elif entry.is_file() and entry.suffix == ".md":
+            elif entry.is_file() and entry.suffix in (".md", ".toml", ".mdc"):
                 art_name = entry.stem
             else:
                 continue
@@ -145,13 +145,20 @@ def run(
     qualified = f"{kind_folder}/{art_name}"
 
     env_base = artifacts.env_base_for(env, scope, kind)
-    source = artifacts.find_source(env_base, kind_folder, art_name)
+    source = artifacts.find_source(env_base, env, kind, art_name)
     if source is None:
         ui.die(f"Source not found under {env_base}/{kind_folder}/.")
 
     files = artifacts.files_relative_to_env_base(source, env_base)
     if not files:
         ui.die(f"Source is empty: {source}")
+
+    # Canonicalize on the way into the workspace (e.g. a Codex .toml agent
+    # becomes a Claude-markdown .md): the registry always stores canonical form.
+    env_files = {str(rel): (env_base / rel).read_bytes() for rel in files}
+    canon = converters.to_canonical(env, converters.build_artifact(kind, art_name, env_files))
+    for w in canon.warnings:
+        ui.warn(w)
 
     workspace = workspace_dir()
     dest = workspace / kind_folder / art_name
@@ -167,18 +174,17 @@ def run(
             "Use `pskt push` to publish, or `pskt remove` first if you want to re-add."
         )
 
-    ui.info(f"Copying {len(files)} file(s) from {source} → {dest}/")
+    ui.info(f"Copying {len(canon.files)} file(s) from {source} → {dest}/")
     dest.mkdir(parents=True, exist_ok=True)
     try:
-        for relative in files:
-            src = env_base / relative
+        for relative, data in canon.files.items():
             tgt = dest / relative
             tgt.parent.mkdir(parents=True, exist_ok=True)
-            fsutil.safe_copy(src, tgt)
+            tgt.write_bytes(data)
     except OSError as e:
         shutil.rmtree(dest, ignore_errors=True)
         ui.die(f"Copy failed: {e}")
-    ui.ok(f"Copied {len(files)} file(s) into {dest}.")
+    ui.ok(f"Copied {len(canon.files)} file(s) into {dest}.")
 
     manifest_path = dest / "manifest.toml"
     if not manifest_path.exists():

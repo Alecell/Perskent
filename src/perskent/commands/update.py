@@ -154,7 +154,8 @@ def _update_record(
         f"[{record.env}] updating {pkg.qualified_name}: v{record.version} → v{new_version}..."
     )
 
-    new_files = pkg.files_to_install()
+    # Target-layout file-set (after any format conversion for this env).
+    new_files = [Path(p) for p in installer.plan_install(pkg, record.env).files]
     preserve = pkg.manifest.preserve
 
     skip_in_copy: set[Path] = set()
@@ -163,9 +164,13 @@ def _update_record(
             skip_in_copy.add(f)
 
     try:
-        copied = installer.copy_files(pkg, dest_root, skip=skip_in_copy, overwrite=True)
+        copied, warnings = installer.copy_files(
+            pkg, dest_root, env=record.env, skip=skip_in_copy, overwrite=True
+        )
     except installer.InstallError as e:
         ui.die(f"[{record.env}] copy failed: {e}")
+    for w in warnings:
+        ui.warn(f"[{record.env}] {w}")
 
     new_paths_set = {str(f) for f in new_files}
     orphans_to_remove: list[str] = []

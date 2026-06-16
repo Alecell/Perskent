@@ -29,7 +29,7 @@ from pathlib import Path
 
 import typer
 
-from perskent import artifacts, auth, config, envs, fsutil, git_ops, registry_scan, ui
+from perskent import artifacts, auth, config, converters, envs, git_ops, registry_scan, ui
 from perskent import installed as installed_mod
 from perskent import manifest as manifest_mod
 from perskent.installed import InstalledPackage
@@ -276,27 +276,32 @@ def _load_preserve(ws_pkg_dir: Path) -> list[str]:
         return []
 
 
-def _publishable_files(source: Path, env_base: Path, preserve: list[str]) -> list[Path]:
-    """Install files to mirror back, minus the `preserve` (user-data) ones."""
+def _env_canonical(
+    env: str, kind: str, name: str, source: Path, env_base: Path, preserve: list[str]
+) -> dict[str, bytes]:
+    """Canonical (workspace-layout) file-set of an installation, minus
+    `preserve` (user-data) files. A Codex .toml agent canonicalizes back to a
+    Claude-markdown .md, so the workspace always holds the canonical form."""
     files = artifacts.files_relative_to_env_base(source, env_base)
-    return [f for f in files if not manifest_mod.matches_preserve(f, preserve)]
+    env_files = {str(rel): (env_base / rel).read_bytes() for rel in files}
+    canon = converters.to_canonical(env, converters.build_artifact(kind, name, env_files)).files
+    return {
+        rel: data
+        for rel, data in canon.items()
+        if not manifest_mod.matches_preserve(Path(rel), preserve)
+    }
 
 
-def _has_local_edits(
-    source: Path, env_base: Path, ws_pkg_dir: Path, preserve: list[str]
-) -> bool:
-    """Does the installation's publishable content differ from the workspace?
+def _has_local_edits(canon: dict[str, bytes], ws_pkg_dir: Path, preserve: list[str]) -> bool:
+    """Does the installation's canonical content differ from the workspace?
 
     Covers added/modified files (install vs workspace) and deletions
-    (publishable file present in the workspace but gone from the install).
-    `preserve`-matched files and manifest.toml are ignored.
+    (workspace file gone from the install). `preserve` files and manifest.toml
+    are ignored.
     """
-    publishable = _publishable_files(source, env_base, preserve)
-    pub_set = {str(rel) for rel in publishable}
-
-    for rel in publishable:
+    for rel, data in canon.items():
         dst = ws_pkg_dir / rel
-        if not dst.exists() or (env_base / rel).read_bytes() != dst.read_bytes():
+        if not dst.exists() or dst.read_bytes() != data:
             return True
 
     if ws_pkg_dir.is_dir():
@@ -306,19 +311,14 @@ def _has_local_edits(
             rel = f.relative_to(ws_pkg_dir)
             if manifest_mod.matches_preserve(rel, preserve):
                 continue
-            if str(rel) not in pub_set:
+            if str(rel) not in canon:
                 return True
     return False
 
 
-def _sync_to_workspace(
-    env_base: Path, ws_pkg_dir: Path, publishable: list[Path], preserve: list[str]
-) -> None:
-    """Mirror the installation's publishable files into the workspace package,
-    making the workspace match the install (additions, edits, and deletions).
-    manifest.toml and preserve-matched files are left untouched."""
-    pub_set = {str(rel) for rel in publishable}
-
+def _sync_to_workspace(canon: dict[str, bytes], ws_pkg_dir: Path, preserve: list[str]) -> None:
+    """Mirror the installation's canonical file-set into the workspace package
+    (additions, edits, deletions). manifest.toml and preserve files untouched."""
     if ws_pkg_dir.is_dir():
         for f in ws_pkg_dir.rglob("*"):
             if not f.is_file() or f.name == "manifest.toml":
@@ -326,15 +326,14 @@ def _sync_to_workspace(
             rel = f.relative_to(ws_pkg_dir)
             if manifest_mod.matches_preserve(rel, preserve):
                 continue
-            if str(rel) not in pub_set:
+            if str(rel) not in canon:
                 f.unlink()
 
     ws_pkg_dir.mkdir(parents=True, exist_ok=True)
-    for rel in publishable:
-        src = env_base / rel
+    for rel, data in canon.items():
         tgt = ws_pkg_dir / rel
         tgt.parent.mkdir(parents=True, exist_ok=True)
-        fsutil.safe_copy(src, tgt)
+        tgt.write_bytes(data)
 
 
 def _build_scope_entries(scope: str) -> tuple[dict, list[dict]]:
@@ -351,11 +350,12 @@ def _build_scope_entries(scope: str) -> tuple[dict, list[dict]]:
         if kind_folder is None:
             continue
         env_base = artifacts.env_base_for(rec.env, scope, rec.kind)
-        source = artifacts.find_source(env_base, kind_folder, rec.name)
+        source = artifacts.find_source(env_base, rec.env, rec.kind, rec.name)
         if source is None:
             continue
         ws_pkg_dir = ws / kind_folder / rec.name
         preserve = _load_preserve(ws_pkg_dir)
+        canon = _env_canonical(rec.env, rec.kind, rec.name, source, env_base, preserve)
         entries.append(
             {
                 "storage_key": skey,
@@ -365,7 +365,8 @@ def _build_scope_entries(scope: str) -> tuple[dict, list[dict]]:
                 "source": source,
                 "ws_pkg_dir": ws_pkg_dir,
                 "preserve": preserve,
-                "edited": _has_local_edits(source, env_base, ws_pkg_dir, preserve),
+                "canon": canon,
+                "edited": _has_local_edits(canon, ws_pkg_dir, preserve),
             }
         )
     return state, entries
@@ -432,13 +433,13 @@ def _run_scoped(
     ws_pkg_dir = entry["ws_pkg_dir"]
     env_base = entry["env_base"]
     preserve = entry["preserve"]
-    publishable = _publishable_files(entry["source"], env_base, preserve)
+    canon = entry["canon"]
 
     ui.info(
         f"Syncing {entry['qualified']} from the {scope} installation "
         f"({env_base}) into the workspace..."
     )
-    _sync_to_workspace(env_base, ws_pkg_dir, publishable, preserve)
+    _sync_to_workspace(canon, ws_pkg_dir, preserve)
 
     if not (ws_pkg_dir / "manifest.toml").exists():
         _generate_manifest(ws_pkg_dir, rec.name, rec.kind)

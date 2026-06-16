@@ -30,7 +30,7 @@ from pathlib import Path
 
 import typer
 
-from perskent import compat, config, envs, mirror_config, ui
+from perskent import config, converters, envs, mirror_config, ui
 from perskent import installed as installed_mod
 from perskent.paths import dest_project_dir, dest_root_dir
 from perskent.registry_scan import KIND_FOLDERS, KIND_SINGULAR
@@ -54,37 +54,43 @@ def _dest_base(env: str, scope: str, kind: str) -> Path:
     return dest_project_dir(env, kind)
 
 
-def _find_copy(env: str, scope: str, kind: str, kind_folder: str, name: str) -> _Copy | None:
-    """Locate `<kind_folder>/<name>` under `env`'s dest dir, if present."""
+def _find_copy(env: str, scope: str, kind: str, name: str) -> _Copy | None:
+    """Locate an artifact under `env`'s dest dir, honoring the env's layout
+    (single .toml/.mdc, single .md, or a skill dir), with legacy fallbacks."""
     env_base = _dest_base(env, scope, kind)
-    dir_path = env_base / kind_folder / name
-    file_path = env_base / kind_folder / f"{name}.md"
-    if dir_path.is_dir():
-        source = dir_path
-        files = sorted(f.relative_to(env_base) for f in dir_path.rglob("*") if f.is_file())
-    elif file_path.is_file():
-        source = file_path
-        files = [file_path.relative_to(env_base)]
-    else:
+    layout = converters.dest_layout(env, kind, name)
+    kind_folder = f"{kind}s"
+    candidates = list(layout.glob_roots) + [f"{kind_folder}/{name}", f"{kind_folder}/{name}.md"]
+    files: list[Path] = []
+    for cand in candidates:
+        p = env_base / cand
+        if p.is_dir():
+            files = sorted(f.relative_to(env_base) for f in p.rglob("*") if f.is_file())
+            break
+        if p.is_file():
+            files = [p.relative_to(env_base)]
+            break
+    if not files:
         return None
     mtime = max(((env_base / f).stat().st_mtime for f in files), default=0.0)
-    return _Copy(env=env, env_base=env_base, source=source, files=files, mtime=mtime)
+    return _Copy(env=env, env_base=env_base, source=env_base, files=files, mtime=mtime)
 
 
 def _snapshot(copy: _Copy) -> dict[str, bytes]:
     return {str(rel): (copy.env_base / rel).read_bytes() for rel in copy.files}
 
 
-def _canonical_snapshot(copy: _Copy) -> dict[str, bytes]:
-    """Snapshot with any pskt-injected frontmatter removed, so copies that
-    differ only by our own injection compare as equal."""
-    return {rel: compat.canonical(rel, data) for rel, data in _snapshot(copy).items()}
+def _canonical_snapshot(copy: _Copy, kind: str, name: str) -> dict[str, bytes]:
+    """Canonical (Claude-markdown) form of a copy, so artifacts that differ
+    only by format or by pskt's own injection compare as equal."""
+    return converters.canonical_files(copy.env, kind, name, _snapshot(copy))
 
 
-def _target_snapshot(winner_snap: dict[str, bytes], target_env: str) -> dict[str, bytes]:
-    """What `target_env` should physically hold for the winner's files
-    (e.g. a skill gains frontmatter on the way into Codex)."""
-    return {rel: compat.project(target_env, rel, data) for rel, data in winner_snap.items()}
+def _target_result(winner: _Copy, kind: str, name: str, target_env: str) -> converters.ConvertResult:
+    """What `target_env` should physically hold for the winner's artifact,
+    pivoting through canonical (carries conversion warnings)."""
+    canon = converters.canonical_files(winner.env, kind, name, _snapshot(winner))
+    return converters.from_canonical(target_env, converters.build_artifact(kind, name, canon))
 
 
 def _write_snapshot(snap: dict[str, bytes], target_env: str, scope: str, kind: str) -> None:
@@ -172,7 +178,7 @@ def run(
         for env in agents:
             if not envs.supports_kind(env, kind):
                 continue
-            c = _find_copy(env, scope, kind, kind_folder, name)
+            c = _find_copy(env, scope, kind, name)
             if c is not None:
                 copies[env] = c
 
@@ -198,16 +204,15 @@ def run(
             continue
 
         winner = max((copies[e] for e in sources), key=lambda c: c.mtime)
-        winner_snap = _snapshot(winner)
-        winner_canon = _canonical_snapshot(winner)
+        winner_canon = _canonical_snapshot(winner, kind, name)
 
         # Conflict = source candidates disagree on content (only meaningful when
         # the source isn't a single authoritative `--from`). Compared on the
-        # canonical form so pskt's own Codex-frontmatter injection never counts
-        # as a difference.
+        # canonical form so format differences (md vs toml) and pskt's own
+        # injection never count as a difference.
         if from_ is None:
             for e in sources:
-                if e != winner.env and _canonical_snapshot(copies[e]) != winner_canon:
+                if e != winner.env and _canonical_snapshot(copies[e], kind, name) != winner_canon:
                     conflicts.append(qualified)
                     ui.warn(
                         f"conflict on '{qualified}': '{winner.env}' is newest and wins "
@@ -223,14 +228,20 @@ def run(
             if not envs.supports_kind(tgt, kind):
                 ui.warn(f"'{qualified}': code-agent '{tgt}' has no location for kind '{kind}' — skipped.")
                 continue
-            # What this target should physically hold (Codex skills gain
-            # frontmatter; other agents stay verbatim/clean).
-            target_snap = _target_snapshot(winner_snap, tgt)
+            # What this target should physically hold (format-converted as
+            # needed: codex agents become TOML, skills gain frontmatter, etc.).
+            result = _target_result(winner, kind, name, tgt)
+            target_snap = result.files
+            if not target_snap:
+                ui.warn(f"'{qualified}': nothing to write for '{tgt}' — skipped.")
+                continue
             existing = copies.get(tgt)
             if existing is not None and _snapshot(existing) == target_snap:
                 continue  # already identical
             verb = "would copy" if dry_run else "copying"
             plan.append(f"{verb} {qualified}: {winner.env} → {tgt}")
+            for w in result.warnings:
+                ui.warn(f"[{tgt}] {w}")
             artifact_actions += 1
             if not (dry_run or strategy == STRATEGY_ABORT):
                 _write_snapshot(target_snap, tgt, scope, kind)
