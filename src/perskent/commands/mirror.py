@@ -30,7 +30,7 @@ from pathlib import Path
 
 import typer
 
-from perskent import config, envs, fsutil, mirror_config, ui
+from perskent import compat, config, envs, mirror_config, ui
 from perskent import installed as installed_mod
 from perskent.paths import dest_project_dir, dest_root_dir
 from perskent.registry_scan import KIND_FOLDERS, KIND_SINGULAR
@@ -75,14 +75,25 @@ def _snapshot(copy: _Copy) -> dict[str, bytes]:
     return {str(rel): (copy.env_base / rel).read_bytes() for rel in copy.files}
 
 
-def _replicate(winner: _Copy, target_env: str, scope: str, kind: str) -> None:
-    """Copy the winner's files into the target agent's dest dir (verbatim)."""
+def _canonical_snapshot(copy: _Copy) -> dict[str, bytes]:
+    """Snapshot with any pskt-injected frontmatter removed, so copies that
+    differ only by our own injection compare as equal."""
+    return {rel: compat.canonical(rel, data) for rel, data in _snapshot(copy).items()}
+
+
+def _target_snapshot(winner_snap: dict[str, bytes], target_env: str) -> dict[str, bytes]:
+    """What `target_env` should physically hold for the winner's files
+    (e.g. a skill gains frontmatter on the way into Codex)."""
+    return {rel: compat.project(target_env, rel, data) for rel, data in winner_snap.items()}
+
+
+def _write_snapshot(snap: dict[str, bytes], target_env: str, scope: str, kind: str) -> None:
+    """Write a (already projected) snapshot into the target agent's dest dir."""
     target_base = _dest_base(target_env, scope, kind)
-    for rel in winner.files:
-        src = winner.env_base / rel
+    for rel, data in snap.items():
         tgt = target_base / rel
         tgt.parent.mkdir(parents=True, exist_ok=True)
-        fsutil.safe_copy(src, tgt)
+        tgt.write_bytes(data)
 
 
 def run(
@@ -188,12 +199,15 @@ def run(
 
         winner = max((copies[e] for e in sources), key=lambda c: c.mtime)
         winner_snap = _snapshot(winner)
+        winner_canon = _canonical_snapshot(winner)
 
         # Conflict = source candidates disagree on content (only meaningful when
-        # the source isn't a single authoritative `--from`).
+        # the source isn't a single authoritative `--from`). Compared on the
+        # canonical form so pskt's own Codex-frontmatter injection never counts
+        # as a difference.
         if from_ is None:
             for e in sources:
-                if e != winner.env and _snapshot(copies[e]) != winner_snap:
+                if e != winner.env and _canonical_snapshot(copies[e]) != winner_canon:
                     conflicts.append(qualified)
                     ui.warn(
                         f"conflict on '{qualified}': '{winner.env}' is newest and wins "
@@ -209,14 +223,17 @@ def run(
             if not envs.supports_kind(tgt, kind):
                 ui.warn(f"'{qualified}': code-agent '{tgt}' has no location for kind '{kind}' — skipped.")
                 continue
+            # What this target should physically hold (Codex skills gain
+            # frontmatter; other agents stay verbatim/clean).
+            target_snap = _target_snapshot(winner_snap, tgt)
             existing = copies.get(tgt)
-            if existing is not None and _snapshot(existing) == winner_snap:
+            if existing is not None and _snapshot(existing) == target_snap:
                 continue  # already identical
             verb = "would copy" if dry_run else "copying"
             plan.append(f"{verb} {qualified}: {winner.env} → {tgt}")
             artifact_actions += 1
             if not (dry_run or strategy == STRATEGY_ABORT):
-                _replicate(winner, tgt, scope, kind)
+                _write_snapshot(target_snap, tgt, scope, kind)
                 copied += 1
 
         if artifact_actions == 0:

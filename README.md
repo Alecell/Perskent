@@ -119,7 +119,7 @@ Each scope can target **one or several** code-agents at once. `pskt find local` 
 | `claude` (Claude Code) | `~/.claude/` | `./.claude/` | agent, skill, command |
 | `opencode` | `~/.config/opencode/` | `./.opencode/` | agent, skill, command |
 | `qwen` (Qwen Code) | `~/.qwen/` | `./.qwen/` | agent, skill, command |
-| `codex` (OpenAI Codex CLI) | `~/.codex/` | `./.codex/` | skill (into `~/.agents/skills/`, by Codex convention) |
+| `codex` (OpenAI Codex CLI) | `~/.codex/` | `./.codex/` | skill (into `~/.codex/skills/`, where Codex reads them) |
 | `cursor` (Cursor) | `~/.cursor/` | `./.cursor/` | agent, skill, command |
 | `zed` (Zed) | `~/.agents/` | `./.agents/` | skill |
 | `cline` (Cline) | `~/.cline/` | `./.cline/` | skill |

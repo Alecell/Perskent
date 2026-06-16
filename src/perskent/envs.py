@@ -9,12 +9,13 @@ Conventions:
   scope's anchor (home dir for root, project root for project). Used as the
   home of the per-scope `.pskt-installed.toml`.
 - `dest_relative(env, scope, kind)` — where files of a given kind are written.
-  Equals `base_relative` for most (env, kind) pairs; the exceptions are
-  per-env quirks (e.g. Codex skills live in `.agents/skills/`, outside `.codex/`).
-- `SUPPORTED_KINDS` lists the kinds each env consumes as plain files. Kinds
-  that the env only accepts inline in a config file (e.g. Codex subagents,
-  declared in `config.toml`) are intentionally left out — perskent does not
-  edit config files.
+  Currently equals `base_relative` for every (env, kind) pair; the
+  `_KIND_OVERRIDE` hook remains for future per-env quirks.
+- `SUPPORTED_KINDS` lists the kinds each env consumes as plain files in a
+  format compatible with perskent's verbatim copy. Kinds an env expects in a
+  different format (e.g. Codex subagents are TOML files in `~/.codex/agents/`,
+  not the Markdown other agents use) are left out — perskent copies files
+  as-is and does not convert formats.
 """
 from __future__ import annotations
 
@@ -65,9 +66,10 @@ _BASE: dict[str, dict[str, str]] = {
 }
 
 # (env, kind) → override for the destination dir. Falls back to _BASE otherwise.
-_KIND_OVERRIDE: dict[tuple[str, str], dict[str, str]] = {
-    (ENV_CODEX, "skill"): {"root": ".agents", "project": ".agents"},
-}
+# Empty today: every supported (env, kind) writes under the env's base dir.
+# (Codex skills used to live in `.agents/skills/`; modern Codex reads them from
+# `~/.codex/skills/` — the env base — so the override was dropped.)
+_KIND_OVERRIDE: dict[tuple[str, str], dict[str, str]] = {}
 
 SUPPORTED_KINDS: dict[str, frozenset[str]] = {
     ENV_CLAUDE:   frozenset({"agent", "skill", "command"}),
@@ -109,7 +111,7 @@ def dest_relative(env: str, scope: str, kind: str) -> str:
     """Relative path where files of `kind` are written for (env, scope).
 
     Equals base_relative except when an env scatters a particular kind outside
-    its base dir (e.g. Codex skills live in `.agents/skills/`).
+    its base dir (see `_KIND_OVERRIDE`; currently none).
     """
     override = _KIND_OVERRIDE.get((env, kind))
     if override is not None:

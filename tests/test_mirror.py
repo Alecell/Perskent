@@ -69,6 +69,55 @@ def test_dry_run_touches_nothing(isolated):
     assert not (isolated.proj / ".cursor" / "skills" / "foo").exists()
 
 
+def _enable_codex_project():
+    from perskent import config
+    cfg = config.load()
+    cfg.code_agents_project = ["claude", "codex"]
+    config.save(cfg)
+
+
+def test_mirror_claude_to_codex_lands_in_codex_skills(isolated):
+    # End-to-end: a skill refined in .claude must land where modern Codex reads
+    # skills (.codex/skills/), not the legacy .agents/ location.
+    _enable_codex_project()
+    _skill(isolated.proj, "claude", "---\nname: foo\ndescription: x\n---\nbody")
+    res = runner.invoke(
+        app, ["mirror", "--scope", "project", "--only", "skills/foo", "--from", "claude", "--to", "codex"]
+    )
+    assert res.exit_code == 0, res.output
+    dest = isolated.proj / ".codex" / "skills" / "foo" / "SKILL.md"
+    assert dest.read_text() == "---\nname: foo\ndescription: x\n---\nbody"  # author FM verbatim
+    assert not (isolated.proj / ".agents" / "skills" / "foo").exists()
+
+
+def test_mirror_into_codex_injects_frontmatter_when_missing(isolated):
+    # A frontmatter-less skill (e.g. a persona loaded by path) must become
+    # Codex-discoverable automatically — pskt injects name/description.
+    _enable_codex_project()
+    _skill(isolated.proj, "claude", "> **Role:** Product Owner\n\n## ROLE\nbody\n")
+    res = runner.invoke(
+        app, ["mirror", "--scope", "project", "--only", "skills/foo", "--from", "claude", "--to", "codex"]
+    )
+    assert res.exit_code == 0, res.output
+    dest = (isolated.proj / ".codex" / "skills" / "foo" / "SKILL.md").read_text()
+    assert dest.startswith("---\n")
+    assert "name: " in dest and "description: " in dest
+    assert "Product Owner" in dest
+    # source .claude copy stays pristine (no injection upstream).
+    assert (isolated.proj / ".claude" / "skills" / "foo" / "SKILL.md").read_text().startswith(">")
+
+
+def test_mirror_into_codex_is_idempotent(isolated):
+    # Second run must be a no-op: injected frontmatter must not look "different".
+    _enable_codex_project()
+    _skill(isolated.proj, "claude", "> **Role:** PO\n\nbody\n")
+    args = ["mirror", "--scope", "project", "--only", "skills/foo", "--from", "claude", "--to", "codex"]
+    assert runner.invoke(app, args).exit_code == 0
+    res2 = runner.invoke(app, args)
+    assert res2.exit_code == 0, res2.output
+    assert "nothing to mirror" in res2.output.lower()
+
+
 def test_refuses_single_agent_scope(isolated):
     # Root scope is claude+codex but codex doesn't support... actually 2 agents.
     # Force a single-agent scope to assert the guard.
