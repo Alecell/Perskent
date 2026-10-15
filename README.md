@@ -1,5 +1,12 @@
 # perskent
 
+> [!WARNING]
+> **This project is deprecated and archived (2026-10-15).** It is no longer maintained and the repository is read-only.
+>
+> Use **[skillshare](https://github.com/runkids/skillshare)** instead — a community-maintained tool that covers the same need (one source of truth for your AI coding setup, synced across code-agents) with broader support and an active community.
+>
+> Existing installs keep working, but no further fixes or releases will be published.
+
 CLI for managing AI code-agent packages (skills, agents, commands) via your own private Git repository — no central registry, no third-party host.
 
 You point `pskt` at your own repo (a private GitHub repo works fine), and the CLI handles installation, updates, versioning, and publishing of your packages to the chosen code-agent's directory at the chosen scope (global or per-project).
